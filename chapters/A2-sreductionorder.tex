@@ -1,0 +1,120 @@
+\chapter{The full Halide simplifier reduction order}
+\label{a:sreductionorder}
+
+\begin{equation}
+s >_{\mathcal{V}ar} t \textrm{ iff } \exists x . |s|_{x} > |t|_{x} \wedge \forall c \in \Sigma^0 . \lnot \exists \sigma . \sigma(x) = c
+\end{equation}
+
+The order $>_{\mathcal{V}ar}$ holds if there is one variable with strictly fewer occurrences in $s$ than in $t$, and if that variable cannot be a ground term. 
+
+\begin{equation}
+s >_{vec} t \textrm{ iff } |s|_{vec} > |t|_{vec} \wedge \forall x \in \mathcal{V}ar . |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{vec}$ holds if there are strictly more vector operations in $s$ than in $t$.
+
+\begin{equation}
+s >_{\textrm{dmm}} t \textrm{ iff } |s|_{\textrm{dmm}} > |t|_{\textrm{dmm}} \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{\textrm{dmm}}$ holds if the total count of division, modulus, and multiplication operations is strictly greater in $s$ than in $t$.
+
+\begin{equation}
+s >_{\textrm{leaf}} t \textrm{ iff } |s|_{\textrm{leaf}} > |t|_{\textrm{leaf}} \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+We define the measure function $|s|_{\textrm{leaf}}$ as the number of leaves or terminals in the term $s$ represented as an abstract syntax tree. Thus $>_{\textrm{leaf}}$ holds if $s$ has more leaves than $t$.
+
+\begin{equation}
+s >_{\textrm{op}} t \textrm{ iff } \sum_{f \in \Sigma} |s|_f > \sum_{f \in \Sigma} |t|_f \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{\textrm{op}}$ holds if the count of all operations (all symbols in $\Sigma$ that are not zero-arity) in term $s$ is strictly greater that of $t$.
+
+\begin{equation}
+\begin{split}
+s >_{0/1} t \textrm{ iff } & |s|_{leaf} - |s|_0 + |s|_1 > |t|_{leaf} - |t|_0 - |t|_1 \\
+&  \wedge |s|_{leaf} = |t|_{leaf} \\
+& \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x \\ 
+& \wedge \forall x \in \mathcal{V}ar(s) . \lnot \exists \sigma . (\sigma(x) \neq 0 \wedge \sigma(x) \neq 1)
+\end{split}
+\end{equation}
+
+The order $>_{0/1}$ holds if there are strictly more occurrences of the constants 0 and 1 in $t$ than in $s$ and if for all variables in $s$, there is no substitution such that $x$ can be substituted with the constants 0 or 1.
+
+\begin{equation}
+s >_{f} t \textrm{ iff } |s|_{f} > |t|_{f} \wedge \forall x \in \mathcal{V}ar . |s|_x \geq |t|_x
+\end{equation} 
+
+This order represents a composition of orders over each operation in the Halide expression grammar. The operations are checked in this order:
+
+\begin{enumerate}
+  \item \texttt{ramp}
+  \item \texttt{broadcast}
+  \item \texttt{select}
+  \item division
+  \item multiply
+  \item modulus
+  \item subtraction
+  \item addition
+  \item \texttt{min}, \texttt{max}
+  \item or
+  \item and
+  \item $\geq$
+  \item $>$
+  \item $\leq$
+  \item $<$
+  \item $\neq$
+  \item $=$
+  \item not
+\end{enumerate}
+
+\begin{equation}
+s >_{lpo} t
+\end{equation}
+The order $>_{lpo}$ is a lexicographic path order induced by an order defined over the Halide operations. We further refine the Halide operations by distinguishing addition, multiplication, select, min, and max where both arguments must not be ground terms from their counterparts whose arguments may be a ground term. We also separate subtraction where the left operand is the constant 0 from substractions where the left operand cannot be the constant 0.
+
+\begin{itemize}
+  \item add by constant <
+  \item multiply by constant <
+  \item \{subtract from 0, select from constant \} < 
+  \item max with constant <
+  \item \{min with constant, max, min, add, mul, subtract \} <
+  \item all other operators
+\end{itemize}
+
+\begin{equation}
+s >_{str} t \textrm{ iff } \phi_{str}(s) < \phi_{str}(t) \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{str}$ is checked by calculating the function $\phi_{str}$, which traverses the input term depth-first and replaces each constant with "b" and each variable with "a". The resulting strings are then compared lexicographically.
+
+\begin{equation}
+s >_{negc} t \textrm{ iff } |s|_{negc} > |t|_{negc}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{negc}$ holds when $s$ contains strictly more negative constants than $t$.
+
+\begin{equation}
+s >_{nmodc} t \textrm{ iff } |s|_{nmodc} > |t|_{nmodc}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{nmodc}$ holds when $s$ contains strictly more constants that are not within the range $0 \leq c < |c_m|$, for some constant $c_m$. 
+
+\begin{equation}
+s >_{uniq} t \textrm{ iff } |s|_{uniq} > |t|_{uniq}  \wedge \forall x \in V, |s|_x \geq |t|_x
+\end{equation}
+
+The order $>_{uniq}$ holds when $s$ contains strictly more unique subtrees than $t$.
+
+Finally, these two rules are well-ordered because they associate min and max to the left.
+
+\begin{equation}
+\tag{max106}
+\texttt{max}(\texttt{max}(x,y), \texttt{max}(z,w)) \rightarrow_R \texttt{max}(\texttt{max}(\texttt{max}(x,y),z),w)
+\end{equation}
+
+\begin{equation}
+\tag{min106}
+\texttt{min}(\texttt{min}(x,y), \texttt{min}(z,w)) \rightarrow_R \texttt{min}(\texttt{min}(\texttt{min}(x,y),z),w)
+\end{equation}

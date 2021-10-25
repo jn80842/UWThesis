@@ -1,0 +1,48 @@
+\chapter{Halide expression grammar}
+\label{a:grammar}
+
+
+\begin{grammar}
+<Expr> ::= <BoolExpr> 
+\alt <IntExpr> 
+\alt <VectorExpr>
+
+<BoolExpr> ::= `true'
+\alt `false'
+\alt <IntExpr> `<' <IntExpr>
+\alt <IntExpr> `>' <IntExpr>
+\alt <IntExpr> `<=' <IntExpr>
+\alt <IntExpr> `>=' <IntExpr>
+\alt <IntExpr> `=' <IntExpr>
+\alt <IntExpr> `!=' <IntExpr>
+\alt <VectorExpr> `<' <VectorExpr>
+\alt <VectorExpr> `>' <VectorExpr>
+\alt <VectorExpr> `<=' <VectorExpr>
+\alt <VectorExpr> `>=' <VectorExpr>
+\alt <VectorExpr> `=' <VectorExpr>
+\alt <VectorExpr> `!=' <VectorExpr>
+\alt <BoolExpr> `&&' <BoolExpr>
+\alt <BoolExpr> `||' <BoolExpr>
+\alt `!' <BoolExpr>
+
+<IntExpr> ::= <IntExpr> `+' <IntExpr>
+\alt <IntExpr> `-' <IntExpr>
+\alt <IntExpr> `*' <IntExpr>
+\alt <IntExpr> `/' <IntExpr>
+\alt <IntExpr> `\%' <IntExpr>
+\alt `max' <IntExpr> <IntExpr>
+\alt `min' <IntExpr> <IntExpr>
+\alt `select' <BoolExpr> <IntExpr> <IntExpr>
+\alt integers
+
+<VectorExpr> ::= `broadcast' <IntExpr>
+\alt `ramp' <IntExpr> <IntExpr>
+\alt <VectorExpr> `+' <VectorExpr>
+\alt <VectorExpr> `-' <VectorExpr>
+\alt <VectorExpr> `*' <VectorExpr>
+\alt <VectorExpr> `/' <VectorExpr>
+\alt <VectorExpr> `\%' <VectorExpr>
+\alt `max' <VectorExpr> <VectorExpr>
+\alt `min' <VectorExpr> <VectorExpr>
+\alt `select' <BoolExpr> <VectorExpr> <VectorExpr>
+\end{grammar}

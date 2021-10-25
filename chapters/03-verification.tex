@@ -1,0 +1,120 @@
+\chapter{Verification}
+\label{sec:verification}
+
+We improve the Halide term rewriting system by ensuring its soundness in
+two ways: first, we verify that each individual rule is correct, meaning that the
+rewrite preserves semantics. Then we verify that the term rewriting system is
+guaranteed to terminate on all inputs by ensuring that no sequence of
+rule applications, on any input expression, can form a cycle.
+
+\subsection{Rule Verification}
+\label{sec:verification}
+We verify each individual rule is correct by modeling Halide
+expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
+prove that the rule's left- and right-hand sides are equivalent. Most Halide expression
+semantics map cleanly to SMT2 formulas. The functions \hmax{} and
+\hmin{} are defined in the usual way, and \hsel{} in
+Halide is equivalent to the SMT2 operator \texttt{ite}. Division and
+modulo are given the Euclidean definitions in both Halide and
+SMT2~\cite{boute1992euclidean}, though division and modulo by zero is handled
+differently (in Halide both evaluate to zero).
+%If a variable appears in the LHS of a rule as a divisor in a
+%division or modulo operation, it is assumed to be non-zero. %The Halide
+%expressions do not have a true boolean type (true and false are represented by
+%unsigned integers of 1 bitwidth), so expressions must be typed as either
+%\texttt{Int} or \texttt{Bool} when translated into SMT2. The Halide expression
+Halide's TRS uses two vector-constructing operators, \texttt{broadcast} and \texttt{ramp}; all
+other integer operators can be coerced to vector operators. 
+\texttt{broadcast(x, l)} projects some value $x$ to a vector of length $l$; because of
+the type coercion, we can simply represent \texttt{broadcast(x, l)} as the variable
+\texttt{x} in SMT2. \texttt{ramp(x, s, l)} creates a vector of length $l$
+whose initial entry has the value $x$ and all subsequent entries increase with
+stride $s$. In SMT2, we represent this term as the symbolic expression $x + l *
+s$, where $l$ must be zero or positive.
+
+Given this modeling, for each rule, we assert any predicate guards are true, then
+ask Z3 to search for a variable assignment that makes the LHS and RHS not
+equivalent.  If Z3 indicates no such assignment exists, the LHS must be equivalent to
+the RHS and the rule must be correct. We implemented an SMT2 printer for 
+Halide rewrite rules that automatically constructs an SMT2 verification problem for each rule.
+Rule verification using Z3 is fully automated
+and can be run for the current set of rewrite rules used in the compiler via a script.
+
+However, for 123
+rules, Z3 either timed out or returned unknown. Nearly all of these rules used
+either division or modulo. We used the proof assistant Coq to manually prove the
+correctness of these remaining rules. In the course of these proofs, we
+discovered we were also able to relax the predicate guards of \NumPredicatesRelaxed
+rules; for example, in some cases a rule
+with a guard requiring some constant to be positive would be equally valid
+if the constant was non-zero.
+
+
+\paragraph{Evolving Semantics}
+\label{sub:evolvingsemantics}
+
+This mostly-automated approach to verification assists with changing
+the language semantics. Our initial work on verification was not on
+the semantics described above: division or modulo by zero was originally
+considered undefined behavior. Since we had already
+modeled Halide semantics in SMT2, it was easy to alter the
+definitions of division and modulo and re-run the verification scripts.
+We proved \NumZdivCoqProvedRules rules manually in Coq after Z3 failed to verify them; 
+since in the previous round all Coq proofs
+included the assumption that all divisors were non-zero, in most cases
+we had only to add a case to show that the rule was true when the
+divisor was zero as well. In the course of reviewing
+these proofs, we identified \NumZdivRelaxedPredicates rules whose
+predicates included the condition that a divisor be non-zero and where
+that condition could safely be lifted. We found that the remaining
+\NumZdivFalseRules rules were not correct under the new semantics and
+submitted a patch to amend them.
+
+The Halide TRS has a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered \NumRulesFixed new soundness bugs and \NumPredicatesRelaxed instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
+
+The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered \NumRulesFixed incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
+
+Case $\mathbb{H}$
+\footnote{
+\label{footnote:casesfi}
+$\mathbb{F}$: \url{https://github.com/halide/Halide/pull/4721}
+$\mathbb{G}$: \url{https://github.com/halide/Halide/pull/4772}
+$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439} % these are the div by 0 semantics change fixes
+$\mathbb{I}$: \url{https://github.com/halide/Halide/pull/4850}
+}
+is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\cite{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 
+\NumZdivCoqProvedRules rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, \NumZdivFalseRules existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
+
+\begin{align*}
+(x/y)*y + (x\;\%\;y) \rewrites & x \\
+  -1 / x \rewrites & \hsel(x < 0, 1, -1) \\
+(x + y)/x \rewrites & y/x + 1
+\end{align*}
+
+The first was modified to:
+\[
+(x/c_0)*c_0 + (x\;\%\;c_0) \rewrites x \pred c_0 \neq 0
+\]
+and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
+
+The cases discussed in Section~\ref{sub:bugfixes} all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect rules, and 3 pull requests that modify rules in order to avoid cycles. Fixing a reduction order also guarantees that no new cycles can be introduced as long as new rules obey this order; without such a guide, it is possible to introduce a rule that would close a loop in some sequence of existing rule applications and cause a cycle, resulting in infinite recursion during compilation. 
+
+\begin{table*}
+\caption{Rules corrected through the first round of verification.}
+{\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{r|l|l}
+& Rule & Counterexample \\
+\hhline{=|=|=}
+Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
+\hhline{=|=|=}
+Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites {-x} \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+\hhline{=|=|=}
+Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \;\%\; c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + {-c_0} \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+
+\end{tabular}
+}
+\label{tab:verfirstround}
+\end{table*}
