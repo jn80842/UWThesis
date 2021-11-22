@@ -8,7 +8,7 @@ guaranteed to terminate on all inputs by ensuring that no sequence of
 rule applications, on any input expression, can form a cycle.
 
 \subsection{Rule Verification}
-\label{sec:verification}
+\label{sec:ruleverification}
 We verify each individual rule is correct by modeling Halide
 expressions in SMT2 and using the SMT solver Z3~\cite{de2008z3} to
 prove that the rule's left- and right-hand sides are equivalent. Most Halide expression

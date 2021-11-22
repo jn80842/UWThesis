@@ -1,76 +1,430 @@
- 
-Bibtex (bib) file for the thesis style document.
- 
-@string{Knuth="Donald E. Knuth"}
- 
-@book{book,
-   author = knuth,
-   title = "The {\TeX} book",
-   publisher = "Addison-Wesley",
-   year = 1984}
- 
-@book{Tbook,
-   author = knuth,
-   title = "{\TeX}: The Program",
-   publisher = "Addison-Wesley",
-   year = 1986}
- 
-@book{Metafont,
-   author = knuth,
-   title = "The Metafont book",
-   publisher = "Addison-Wesley",
-   year = 1986}
- 
-@book{CMT,
-   author = knuth,
-   title = "Computer Modern Typefaces",
-   publisher = "Addison-Wesley",
-   year = 1986}
- 
-@book{Lbook,
-   author = "Leslie Lamport",
-   title = "{\LaTeX}: A Document Preparation System",
-   edition = "2nd",
-   publisher = "Addison-Wesley",
-   year = 1994}
- 
-@book{companion,
-   author = "M{ichel} Goossens and F{rank} Mittelbach and A{lexander} Samarin",
-   title = "The {\LaTeX} Companion",
-   publisher = "Addison-Wesley",
-   year = 1994}
- 
-@article{TUG:h-l,
-  author = "Editor",
-  title = "Hyphenation Exception Log",
-  journal = "TUGboat",
-  volume = 7,
-  number = 3,
-  year = 1986,
-  pages = "145"}
- 
- 
-@book{Hamlet,
-   author = "William Shakespeare",
-   title = "Hamlet",
-   publisher = "F.S.~Crofts~\&~Co., Inc.",
-   address = "NY",
-   year = 1946,
-   note = "Act~I, Scene~3, Lines~70-72, are apropos."}
- 
-Following author fields is not standard
-@book{JTeX,
-   author = "{Spivak, M.D., Ph.D.}",
-   title = "The Joy of {\TeX}",
-   publisher = "American Mathematical Society",
-   address = "RI",
-   year = 1986}
- 
-@book{PCTeX,
-   author = "{Spivak, M.D., Ph.D.}",
-   title = "PC{\TeX}\ Manual",
-   publisher = "Personal {\TeX}, Inc.",
-   address = "CA",
-   year = 1985}
- 
- 
+@inproceedings{singh2016swapper,
+  title={SWAPPER: A framework for automatic generation of formula simplifiers based on conditional rewrite rules},
+  author={Singh, Rohit and Solar-Lezama, Armando},
+  booktitle={2016 Formal Methods in Computer-Aided Design (FMCAD)},
+  pages={185--192},
+  year={2016},
+  organization={IEEE}
+}
+
+@inproceedings{butler2017synthesizing,
+  title={Synthesizing interpretable strategies for solving puzzle games},
+  author={Butler, Eric and Torlak, Emina and Popovi{\'c}, Zoran},
+  booktitle={Proceedings of the 12th International Conference on the Foundations of Digital Games},
+  pages={10},
+  year={2017},
+  organization={ACM}
+}
+
+@book{baader1999term,
+  title={Term rewriting and all that},
+  author={Baader, Franz and Nipkow, Tobias},
+  year={1999},
+  publisher={Cambridge university press}
+}
+
+@inproceedings{de2008z3,
+  title={Z3: An efficient SMT solver},
+  author={De Moura, Leonardo and Bj{\o}rner, Nikolaj},
+  booktitle={International conference on Tools and Algorithms for the Construction and Analysis of Systems},
+  pages={337--340},
+  year={2008},
+  organization={Springer}
+}
+
+@manual{Coq19,
+author = {{Coq} {Development} {Team}, The},
+title = {The {Coq} Reference Manual, version 8.10},
+month = Nov,
+year = {2019},
+note = {Available electronically at \url{http://coq.inria.fr/doc}}
+}
+
+@article{Adams2019,
+ author = {Adams, Andrew and Ma, Karima and Anderson, Luke and Baghdadi, Riyadh and Li, Tzu-Mao and Gharbi, Micha\"{e}l and Steiner, Benoit and Johnson, Steven and Fatahalian, Kayvon and Durand, Fr{\'e}do and Ragan-Kelley, Jonathan},
+ title = {Learning to Optimize Halide with Tree Search and Random Programs},
+ journal = {ACM Trans. Graph.},
+ issue_date = {July 2019},
+ volume = {38},
+ number = {4},
+ month = jul,
+ year = {2019},
+ issn = {0730-0301},
+ pages = {121:1--121:12},
+ articleno = {121},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/3306346.3322967},
+ doi = {10.1145/3306346.3322967},
+ acmid = {3322967},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {halide, optimizing compilers},
+}
+
+@article{ragankelley2012halide,
+ author = {Ragan-Kelley, Jonathan and Adams, Andrew and Paris, Sylvain and Levoy, Marc and Amarasinghe, Saman and Durand, Fr{\'e}do},
+ title = {Decoupling Algorithms from Schedules for Easy Optimization of Image Processing Pipelines},
+ journal = {ACM Trans. Graph.},
+ issue_date = {July 2012},
+ volume = {31},
+ number = {4},
+ month = jul,
+ year = {2012},
+ issn = {0730-0301},
+ pages = {32:1--32:12},
+ articleno = {32},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/2185520.2185528},
+ doi = {10.1145/2185520.2185528},
+ acmid = {2185528},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {compilers, image processing, performance},
+} 
+@inproceedings{ragankelley2013halide,
+ author = {Ragan-Kelley, Jonathan and Barnes, Connelly and Adams, Andrew and Paris, Sylvain and Durand, Fr{\'e}do and Amarasinghe, Saman},
+ title = {Halide: A Language and Compiler for Optimizing Parallelism, Locality, and Recomputation in Image Processing Pipelines},
+ booktitle = {Proceedings of the 34th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+ series = {PLDI '13},
+ year = {2013},
+ isbn = {978-1-4503-2014-6},
+ location = {Seattle, Washington, USA},
+ pages = {519--530},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/2491956.2462176},
+ doi = {10.1145/2491956.2462176},
+ acmid = {2462176},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {autotuning, compiler, domain specific language, gpu, image processing, locality, optimization, parallelism, redundant computation, vectorization},
+} 
+@book{matiyasevich1993hilberts10th,
+ author = {Matiyasevich, Yuri V.},
+ title = {Hilbert's Tenth Problem},
+ year = {1993},
+ isbn = {0-262-13295-8},
+ publisher = {MIT Press},
+ address = {Cambridge, MA, USA},
+} 
+@inproceedings{gorn1967,
+ author = {Gorn, Saul},
+ title = {Handling the Growth by Definition of Mechanical Languages},
+ booktitle = {Proceedings of the April 18-20, 1967, Spring Joint Computer Conference},
+ series = {AFIPS '67 (Spring)},
+ year = {1967},
+ location = {Atlantic City, New Jersey},
+ pages = {213--224},
+ numpages = {12},
+ url = {http://doi.acm.org/10.1145/1465482.1465513},
+ doi = {10.1145/1465482.1465513},
+ acmid = {1465513},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+} 
+@InProceedings{sygus,
+author = {Alur, Rajeev and Bodík, Rastislav and Dallal, Eric and Fisman, Dana and Garg, Pranav and Juniwal, Garvit and Kress-Gazit, Hadas and Madhusudan, P. and Martin, Milo M. K. and Raghothaman, Mukund and Saha, Shambwaditya and Seshia, Sanjit A. and Singh, Rishabh and Solar-Lezama, Armando and Torlak, Emina and Udupa, Abhishek},
+title = {Syntax-Guided Synthesis},
+booktitle = {Dependable Software Systems Engineering},
+year = {2015},
+month = {February},
+url = {https://www.microsoft.com/en-us/research/publication/syntax-guided-synthesis/},
+pages = {1–25},
+edition = {Dependable Software Systems Engineering},
+}
+
+@article{beamsearch,
+author = {Reddy, D. Raj},
+title = {Speech Understanding Systems: A Summary of Results of the Five-Year Research Effort},
+year = 1977
+}
+
+@inproceedings{mangpo2016superoptimization,
+ author = {Phothilimthana, Phitchaya Mangpo and Thakur, Aditya and Bodik, Rastislav and Dhurjati, Dinakar},
+ title = {Scaling Up Superoptimization},
+ booktitle = {Proceedings of the Twenty-First International Conference on Architectural Support for Programming Languages and Operating Systems},
+ series = {ASPLOS '16},
+ year = {2016},
+ isbn = {978-1-4503-4091-5},
+ location = {Atlanta, Georgia, USA},
+ pages = {297--310},
+ numpages = {14},
+ url = {http://doi.acm.org/10.1145/2872362.2872387},
+ doi = {10.1145/2872362.2872387},
+ acmid = {2872387},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ keywords = {SMT, program synthesis, superoptimization},
+} 
+@article{regehr2018superoptimization,
+  author    = {Raimondas Sasnauskas and
+               Yang Chen and
+               Peter Collingbourne and
+               Jeroen Ketema and
+               Jubi Taneja and
+               John Regehr},
+  title     = {Souper: {A} Synthesizing Superoptimizer},
+  journal   = {CoRR},
+  volume    = {abs/1711.04422},
+  year      = {2017},
+  url       = {http://arxiv.org/abs/1711.04422},
+  archivePrefix = {arXiv},
+  eprint    = {1711.04422},
+  timestamp = {Mon, 13 Aug 2018 16:48:06 +0200},
+  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1711-04422},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{boute1992euclidean,
+  title={The Euclidean definition of the functions div and mod},
+  author={Boute, Raymond T},
+  journal={ACM Transactions on Programming Languages and Systems (TOPLAS)},
+  volume={14},
+  number={2},
+  pages={127--144},
+  year={1992},
+  publisher={ACM}
+}
+
+@inproceedings{schkufza2013stochastic,
+  title={Stochastic superoptimization},
+  author={Schkufza, Eric and Sharma, Rahul and Aiken, Alex},
+  booktitle={ACM SIGPLAN Notices},
+  volume={48},
+  number={4},
+  pages={305--316},
+  year={2013},
+  organization={ACM}
+}
+
+@inproceedings{phothilimthana2016scaling,
+  title={Scaling up superoptimization},
+  author={Phothilimthana, Phitchaya Mangpo and Thakur, Aditya and Bodik, Rastislav and Dhurjati, Dinakar},
+  booktitle={ACM SIGARCH Computer Architecture News},
+  volume={44},
+  number={2},
+  pages={297--310},
+  year={2016},
+  organization={ACM}
+}
+
+@inproceedings{panchekha2015automatically,
+  title={Automatically improving accuracy for floating point expressions},
+  author={Panchekha, Pavel and Sanchez-Stern, Alex and Wilcox, James R and Tatlock, Zachary},
+  booktitle={ACM SIGPLAN Notices},
+  volume={50},
+  number={6},
+  pages={1--11},
+  year={2015},
+  organization={ACM}
+}
+
+@inproceedings{jovanovic2017solving,
+  title={Solving nonlinear integer arithmetic with MCSAT},
+  author={Jovanovi{\'c}, Dejan},
+  booktitle={International Conference on Verification, Model Checking, and Abstract Interpretation},
+  pages={330--346},
+  year={2017},
+  organization={Springer}
+}
+
+@inproceedings{butler2018framework,
+  title={A Framework for Computer-Aided Design of Educational Domain Models},
+  author={Butler, Eric and Torlak, Emina and Popovi{\'c}, Zoran},
+  booktitle={International Conference on Verification, Model Checking, and Abstract Interpretation},
+  pages={138--160},
+  year={2018},
+  organization={Springer}
+}
+
+@article{nelson1980techniques,
+  title={Techniques for program verification[Ph. D. Thesis]},
+  author={Nelson, C.G.},
+  year={1980}
+}
+
+@inproceedings{cousot1977abstract,
+  title={Abstract interpretation: a unified lattice model for static analysis of programs by construction or approximation of fixpoints},
+  author={Cousot, Patrick and Cousot, Radhia},
+  booktitle={Proceedings of the 4th ACM SIGACT-SIGPLAN symposium on Principles of programming languages},
+  pages={238--252},
+  year={1977},
+  organization={ACM}
+}
+
+@inproceedings{cousot1979systematic,
+  title={Systematic design of program analysis frameworks},
+  author={Cousot, Patrick and Cousot, Radhia},
+  booktitle={Proceedings of the 6th ACM SIGACT-SIGPLAN symposium on Principles of programming languages},
+  pages={269--282},
+  year={1979},
+  organization={ACM}
+}
+
+@inproceedings{lopes2015alive,
+author = {Lopes, Nuno P. and Menendez, David and Nagarakatte, Santosh and Regehr, John},
+title = {Provably Correct Peephole Optimizations with Alive},
+year = {2015},
+isbn = {9781450334686},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+booktitle = {Proceedings of the 36th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+pages = {22–32},
+numpages = {11},
+keywords = {Compiler Verification, Peephole Optimization, Alive},
+location = {Portland, OR, USA},
+series = {PLDI ’15}
+}
+
+@inproceedings{menendez2017aliveinfer,
+author = {Menendez, David and Nagarakatte, Santosh},
+title = {Alive-Infer: Data-Driven Precondition Inference for Peephole Optimizations in LLVM},
+year = {2017},
+isbn = {9781450349888},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3062341.3062372},
+doi = {10.1145/3062341.3062372},
+booktitle = {Proceedings of the 38th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+pages = {49–63},
+numpages = {15},
+keywords = {Learning, Compilers, Inference, Alive},
+location = {Barcelona, Spain},
+series = {PLDI 2017}
+}
+
+@misc{sasnauskas2017souper,
+    title={Souper: A Synthesizing Superoptimizer},
+    author={Raimondas Sasnauskas and Yang Chen and Peter Collingbourne and Jeroen Ketema and Gratian Lup and Jubi Taneja and John Regehr},
+    year={2017},
+    eprint={1711.04422},
+    archivePrefix={arXiv},
+    primaryClass={cs.PL}
+}
+
+@inproceedings{lee2020fhe,
+title = {Optimizing Homomorphic Evaluation Circuits by Program Synthesis and Term Rewriting},
+author = {DongKwon Lee and Woosuk Lee and Hakjoo Oh and Kwangkeun Yi},
+year = {2020},
+booktitle = {Proceedings of the 41st ACM SIGPLAN Conference on Programming Language Design and Implementation},
+series = {PLDI 2020},
+}
+
+
+@inproceedings{mathsat5,
+  author = {Alessandro Cimatti and Alberto Griggio and Bastiaan Schaafsma and Roberto Sebastiani},
+  title = {{The MathSAT5 SMT Solver}},
+  editor = {Nir Piterman and Scott Smolka},
+  booktitle = {Proceedings of TACAS},
+  year = {2013},
+  volume = {7795},
+  series = {LNCS},
+  publisher = {Springer},
+}
+
+@mastersthesis{reinkingthesis,
+title={Formal Semantics for the Halide Language},
+author={Alex Reinking},
+year={2019},
+school={University of California at Berkeley}
+}
+
+@inproceedings{lopes2014weakest,
+  title={Weakest precondition synthesis for compiler optimizations},
+  author={Lopes, Nuno P and Monteiro, Jos{\'e}},
+  booktitle={International Conference on Verification, Model Checking, and Abstract Interpretation},
+  pages={203--221},
+  year={2014},
+  organization={Springer}
+}
+
+@inproceedings{astorga2019learning,
+  author = {Astorga, Angello and Madhusudan, P. and Saha, Shambwaditya and Wang, Shiyu and Xie, Tao}, title = {Learning Stateful Preconditions modulo a Test Generator},
+  year = {2019},
+  isbn = {9781450367127},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  booktitle = {Proceedings of the 40th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+  location = {Phoenix, AZ, USA},
+  series = {PLDI 2019}
+}
+
+@inproceedings{feser2015lambda,
+author = {Feser, John K. and Chaudhuri, Swarat and Dillig, Isil},
+title = {Synthesizing Data Structure Transformations from Input-Output Examples},
+year = {2015},
+isbn = {9781450334686},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+booktitle = {Proceedings of the 36th ACM SIGPLAN Conference on Programming Language Design and Implementation},
+numpages = {11},
+location = {Portland, OR, USA},
+series = {PLDI ’15}
+}
+
+@incollection{knuth1983simple,
+  title={Simple word problems in universal algebras},
+  author={Knuth, Donald E and Bendix, Peter B},
+  booktitle={Automation of Reasoning},
+  pages={342--376},
+  year={1983},
+  publisher={Springer}
+}
+
+@article{massalin1987superoptimizer,
+  title={Superoptimizer: a look at the smallest program},
+  author={Massalin, Henry},
+  journal={ACM SIGARCH Computer Architecture News},
+  volume={15},
+  number={5},
+  pages={122--126},
+  year={1987},
+  publisher={ACM New York, NY, USA}
+}
+
+@article{torlak2014lightweight,
+  title={A lightweight symbolic virtual machine for solver-aided host languages},
+  author={Torlak, Emina and Bodik, Rastislav},
+  journal={ACM SIGPLAN Notices},
+  volume={49},
+  number={6},
+  pages={530--541},
+  year={2014},
+  publisher={ACM New York, NY, USA}
+}
+
+@inproceedings{DBLP:conf/aplas/Solar-Lezama09,
+  author    = {Armando Solar{-}Lezama},
+  editor    = {Zhenjiang Hu},
+  title     = {The Sketching Approach to Program Synthesis},
+  booktitle = {Programming Languages and Systems, 7th Asian Symposium, {APLAS} 2009,
+               Seoul, Korea, December 14-16, 2009. Proceedings},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {5904},
+  pages     = {4--13},
+  publisher = {Springer},
+  year      = {2009},
+  url       = {https://doi.org/10.1007/978-3-642-10672-9\_3},
+  doi       = {10.1007/978-3-642-10672-9\_3},
+  timestamp = {Tue, 14 May 2019 10:00:41 +0200},
+  biburl    = {https://dblp.org/rec/conf/aplas/Solar-Lezama09.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@inproceedings{buchwald2018synthesizing,
+  title={Synthesizing an instruction selection rule library from semantic specifications},
+  author={Buchwald, Sebastian and Fried, Andreas and Hack, Sebastian},
+  booktitle={Proceedings of the 2018 International Symposium on Code Generation and Optimization},
+  pages={300--313},
+  year={2018}
+}
+
+@article{hagedorn2020achieving,
+  title={Achieving high-performance the functional way: a functional pearl on expressing high-performance optimizations as rewrite strategies},
+  author={Hagedorn, Bastian and Lenfers, Johannes and K{\oe}hler, Thomas and Qin, Xueying and Gorlatch, Sergei and Steuwer, Michel},
+  journal={Proceedings of the ACM on Programming Languages},
+  volume={4},
+  number={ICFP},
+  pages={1--29},
+  year={2020},
+  publisher={ACM New York, NY, USA}
+}

@@ -1,6 +1,8 @@
 \chapter{Overview}
 \label{sec:overview}
 
+\section{Term Rewriting Systems}
+
 Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
 used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
 
@@ -26,3 +28,42 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \[ 
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
+
+
+\section{Term rewriting systems in the Halide compiler}
+
+\subsection{The simplifier term rewriting system}
+
+simplifier
+
+\subsection{The variable solver rewriting system}
+
+\subsubsection{TrimNoOps}
+
+When compiling a pipeline, the Halide compiler will attempt to truncate loop bounds to the regions where work is actually performed. The TrimNoOps phase examines a for loop and attempts to prove that some regions of the loop are no-ops; if it can show this, it rewrites the loop so those regions are never visited. The variable solver used in performing this reasoning.
+
+For example, consider a for loop that applies the following function over some range of $x$ and $y$:
+
+\begin{verbatim}
+f(x, y) = x + y + select((x == 10) && (x < y), 1, 0)
+\end{verbatim}
+
+After several compilation phases, the for loop is transformed into:
+
+\begin{verbatim}
+f = {
+	for(y, y_min, y_extent) {
+		for(x, x_min, x_extent) {
+			f[(y * stride + x) - (y_min * stride + x_min)] = x + y
+		}
+	}
+	for(y, y_min, y_extent) {
+		for(x, x_min, x_extent) {
+			f[(y * stride + x) - (y_min * stride + x_min)] = 
+			f[(y * stride + x) - (y_min * stride + x_min)] + select((x == 10) && (x < y), 1, 0)
+		}
+	}
+}
+\end{verbatim}
+
+%%% the example itself is easy to understand but it doesn't actually make use of the variable solver in solving it (it does call it, just doesn't get back interesting results)
