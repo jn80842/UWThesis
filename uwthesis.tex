@@ -53,6 +53,7 @@
 \setcounter{tocdepth}{1}  % Print the chapter and sections to the toc
 
 \usepackage{amsmath}
+\usepackage{amsthm}
 \usepackage{amssymb}
 \usepackage{xspace}
 \usepackage{natbib}
@@ -62,10 +63,10 @@
 \usepackage{tikz-qtree}
 \usepackage{tabularx}
 \usepackage{makecell}
-\usepackage{algorithm2e}
+\usepackage[ruled,vlined]{algorithm2e}
 \usepackage{hhline}
+\usepackage{float}
 \usetikzlibrary{hobby,arrows,backgrounds,calc,trees,automata}
-
 
 \pgfdeclarelayer{background}
 \pgfsetlayers{background,main}
@@ -117,6 +118,13 @@
 \newcommand{\modified}[1]{\textcolor{black}{{#1}}}
 \newcommand{\modifiedagain}[1]{\textcolor{black}{{#1}}}
 
+\newcommand{\trsone}[0]{TRS1}
+\newcommand{\trstwo}[0]{TRS}
+\newcommand{\goallang}[0]{\mathcal{L}}
+\newcommand{\termlang}[0]{T(\Sigma,V)}
+\newcommand{\goalorder}[0]{>_{\phi}}
+\newcommand{\st}[0]{\;.\;}
+
 \newcommand{\hmax}[0]{\texttt{max}}
 \newcommand{\hmin}[0]{\texttt{min}}
 %\newcommand{\rewrites}[0]{\mathop{\rightarrow}\limits_{\scriptscriptstyle{R}}}
@@ -128,6 +136,9 @@
 \newcommand{\htrue}[0]{\texttt{true}}
 \newcommand{\hsel}[0]{\texttt{select}}
 \usepackage{syntax}
+
+\newtheorem*{remark}{Remark}
+\newtheorem{assumption}{Assumption}
 
 %% Macros for quantities
 \newcommand{\NumApps}{{\color{black} 10}\xspace}
@@ -204,23 +215,31 @@
 
 \setcounter{page}{-1}
 \abstract{%
-This sample dissertation is an aid to students who are attempting
-to format their theses with \LaTeX, a sophisticated
-text formatter widely used by mathematicians and scientists everywhere.
- 
-\begin{itemize}
-\item It describes the use of a specialized
-macro package developed specifically for thesis production
-at the University.
-The macros customize \LaTeX\ for the correct thesis style,
-allowing the student to concentrate on the substance of
-his or her text.%
-\footnote{See Appendix A to obtain the source to this
- thesis and the class file.}
-\item It demonstrates the solutions to a variety of
-formatting challenges found in thesis production.
-\item It serves as a template for a real dissertation.
-\end{itemize}
+  Halide is a domain-specific language for high-performance image processing and tensor computations, widely adopted in industry.
+  Internally, the Halide compiler relies on a term rewriting system to
+  prove properties of code required for efficient and correct compilation.  This rewrite
+  system is a collection of handwritten transformation rules 
+  that incrementally rewrite expressions into simpler forms; the system requires high performance 
+  in both time and memory usage to keep compile times low,
+  while operating over the undecidable theory of integers.
+  In this work, we apply formal techniques to prove the correctness of existing
+  rewrite rules and provide a guarantee of termination. Then,
+  we build an automatic program synthesis system 
+  in order to craft new, provably correct rules from failure cases
+  where the compiler was unable to prove properties. We identify and fix
+  \NumRulesFixed incorrect rules as well as \NumOrderingProblems rules which
+  could give rise to infinite rewriting loops.
+  %% We run our synthesis process against 
+  %% a large suite of failed proofs from compiler output, synthesizing a new body
+  %% of rules that improves the system's proving power as evaluated on realistic
+  %% benchmarks.
+  %% The automated system can replace tedious human effort required to craft new rules
+  %% in response to user-reported bugs.  We demonstrate that the new
+  %% term rewriting system is provably sound, more robust, and more general, without
+  %% slowing down the compiler.
+  We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and describe four cases in which it has served as an assistant to a human compiler engineer. We further show that it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage of compiled code without appreciably increasing compilation times.
+
+  %%% this is from oopsla paper, add later work abstract
 }
  
 %
