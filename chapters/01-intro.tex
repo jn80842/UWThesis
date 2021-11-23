@@ -1,6 +1,54 @@
 \chapter{Introduction}
 \label{sec:intro}
 
-this is the introduction.
+Term rewriting systems are a useful tool in the construction of compilers. They are a succinct and efficient way of executing program reasoning tasks, and can give extremely fast performance. 
 
-this is a change made in overleaf.
+However, term rewriting systems can be challenging both to develop and to maintain. As the path of execution for inputs can vary greatly, it can be difficult for developers to reason about how the various rules in the system interact as a whole. Adding, altering, or deleting a rule can have unforeseen consequences. Even if a TRS contains unsound rules, it may give correct results on all but a few inputs, and when the error is detected it can be difficult to track down which rules is responsible. A slight change to the ruleset can make it possible for rules form cycles, causing the system to fail to terminate on some inputs. 
+
+The task of authoring these systems is even more challenging when the language of input expressions is in an undecidable theory. Since a term rewriting system in such a language cannot be complete, it is hard to know if a given system is optimal or if some change would improve its performance, degrade it, or perhaps make no difference at all.
+
+In this work, we propose to show how authoring and maintaining term rewriting systems can be made easier through the use of formal methods and program synthesis. We will demonstrate how these techniques can support all degrees of human involvement: from verifying and strengthening existing term rewriting systems, to bootstrapping term rewriting systems from a specification and a set of seed axioms, to synthesizing a new ruleset entirely from scratch.
+
+In this work we make the following contributions:
+
+\begin{itemize}
+    \item \emph{We show formal methods and program synthesis can usefully assist the authors of term rewriting systems.} Formal proofs of soundness and guarantees of termination can find bugs in large, widely-deployed term rewriting systems, and automatic program synthesis can be used to find new rewrite rules to augment these systems.
+    \item \emph{We present an effective means of encoding a specification for the synthesis of term rewriting systems.} Besides providing a proof of termination, we claim that reduction orders can serve as a useful formalization of the intent behind a term rewriting system, and can be used as a specification when synthesizing rewrite rules.
+\end{itemize}
+
+We evaluate our work in two case studies. In prior work, we investigated the first claim by using formal methods to enhance a pivotal term rewriting system within the Halide compiler called the simplifier. We found that we were able to identify bugs, prove the absence of future errors, and increase the rewriting power of the system. We review our evaluation of the first claim in section~\ref{sec:prior}. 
+
+In our proposed work, we take a look at a smaller and less mature term rewriting system in Halide called the variable solver. In prior work we synthesized new rules for the simplifier largely guided by its large existing ruleset. Here, we plan to evaluate our proposed means of writing specifications for term rewriting system by synthesizing rules to add to the existing ruleset and by synthesizing a ruleset entirely from scratch. We lay out our proposed means of writing specification and our plan to evaluate it in section~\ref{proposed}.
+
+We survey related work in section~\ref{sec:related} and conclude in section~\ref{sec:conclusion}.
+
+\section{Prior work: Maintaining an existing term rewriting system}
+\label{sec:prior}
+
+The Halide compiler contains a hand-authored term rewriting system commonly called the simplifier. It is used in many cases within the compiler for making expressions shorter and in a form better suited to downstream uses. Sometimes the simplifier is used as a prover: the truth value of an expression is checked by rewriting it with the simplifier to see if it will be rewritten to the constant true. At the time we began this work, the simplifier was fairly mature: it had been deployed in production for over a year, was both unit tested and fuzz tested, and comprised almost a thousand rules.
+
+Is it necessary to apply formal methods to the authoring of term rewriting systems? In previous work, we showed that applying formal methods can identify and remedy real issues in the simplifier TRS. Conversely, implementing expression-transforming code as a term rewriting system is useful precisely because it allows easy integration with formal methods. We also show that we can improve this term rewriting system by synthesizing new rewrite rules automatically and that this synthesis process can be used in the compiler's development process. We first provide a proof of soundness and of termination, and then detail the rule synthesis process below. This work has been published at OOPSLA 2020~\cite{newcomb2020verifying}.
+
+\subsection{Proof of soundness}
+We first verify that each rule in the Halide simplifier ruleset is semantics-preserving. We do this by modeling the semantics of the Halide expression language in SMT2. We then implemented a pretty-printer to translate each rule in the simplifier ruleset to an SMT query to be checked by the solver Z3~\cite{de2008z3}. About 12\% of the ruleset could not be verified by Z3, and we proved those rules correct by hand using the proof assistant Coq~\cite{Coq19}. Even though the code had been deployed for over a year and had been fuzz-tested, we found that four of the existing rules were incorrect and submitted patches. In constructing the Coq proofs, we also noticed that 17 rules that predicates that were overly conservative and submitted patches for the relaxed predicates as well.
+
+While this project was ongoing, the Halide semantics for division was changed: division by zero was no longer undefined behavior, but now returned zero. It was simple for us to amend our modeled semantics and rerun rule verification in Z3. Again about 12\% of the ruleset had to be hand-proven using Coq, but we were able to leverage many of the existing proofs from our previous verification. Our verification identified 44 rules which were not correct under the new semantics and 37 rules whose predicates could be relaxed under the semantics change. This shows the value of our formal methods infrastructure, which allowed Halide developers to push a fairly major change with a higher degree of confidence in the soundness of the simplifier than could have been achieved with either manual testing or fuzzing.
+
+\subsection{Proof of termination}
+The Halide simplifier algorithm successively applies rewrite rules until the resulting expression can no longer be rewritten. Thus, if some sequence of rewrites to some input expression can form a cycle, the simplifier algorithm will not terminate. These non-termination errors have been observed in the past (resulting in the compiler throwing a stack overflow error and crashing). Without a specific input expression on which to reproduce a cycle, it is very difficult to examine a set of around a thousand rules and find a subset on which a cycle could occur; even once a cycle has been identified, it is difficult to know the best way to repair it. The ruleset was thus very brittle; deleting, altering, or reordering existing rules has caused new non-termination errors in the past as well.
+
+A term rewriting system can be proven to terminate using a formalism called a \emph{reduction order}~\cite{baader1999term}. A reduction order is an order over a language of terms; if for every rule in a term rewriting system, we can show that the rule's left-hand side is strictly greater than the right-hand side in this order, then we know that there can be no set of rules that can form a cycle, and thus the ruleset must always terminate. A reduction order is distinguished by a few special properties to ensure that these ordering holds no matter how input expressions are matched to the left-hand side term, as well as when a rule is used to rewrite a subterm inside of a larger input expression; see ~\cite{newcomb2020verifying} for full details.
+
+We devised a reduction order that fit as many of the existing simplifier rules as possible. Eight rules could not be fit to our ordering, and we submitted patches to either delete or modify them. Once this was done, not only was a class of bugs eliminated, but the ruleset could now be safely modified without fear of introducing new non-termination behavior. It was also now safe to add any new rule so long as the rule conformed to the reduction order. 
+
+\subsection{Strengthening the ruleset}
+We can empirically observe that the simplifier ruleset is not sufficiently powerful to deal with all expressions it may be called upon, by instrumenting the compiler and logging any expressions that the simplifier cannot further solve. In the past, ruleset authors might look at these failed expressions and write rules to address them by hand. In ~\cite{newcomb2020verifying}, we automated this progress by synthesizing these rules instead.
+
+We synthesize rules through a pipeline that took an expression as input and used CEGIS loops to synthesize an equivalent right-hand side and (if necessary) a predicate guard to form a rule. Our pipeline produces more general rules by mining input expressions for larger patterns and by replacing constants with fresh variables. We also find variants on synthesized rules by applying associativity and commutitativity laws to their left-hand sides. In our experiments, we found that our synthesis pipeline could produce patches to ruleset bugs as good or better than those that were authored by hand. We also carried out a large-scale experiment that synthesized over 4,000 rules using input expressions gathered from compilations of realistic benchmarks; when these new rules were added to the simplifier, the enhanced compiler produced programs with reduced peak memory usage, while showing no increase in compilation times. We also observed Halide developers integrating the rule synthesizer into their workflow.
+
+\section{Proposed work: Synthesizing a new term rewriting system}
+\label{proposed}
+
+In our prior work, we synthesized individual rules to augment an already mature term rewriting system. In our proposed work, we plan to synthesize term rewriting systems from a small existing ruleset or completely from scratch. Our pipeline is sketched out below. In this section, we first justify the assumptions behind our approach. We then lay out our planned evaluation of our methodology on a new application, the variable solver term rewriting system within the Halide compiler.
+
+An idealized version of our proposed synthesis procedure is laid out in algorithm~\ref{algo:synthesis}. This procedure requires a goal function, which returns true if a term is in some desired form and false otherwise; a semantic equivalence relation; and a reduction order over terms, as well of a set of training expressions $E$, which should be representative of the types of expressions the term rewriting system will take as input and a set of test expressions $S$ on which to evaluate the behavior of the term rewriting system.
