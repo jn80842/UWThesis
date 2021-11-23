@@ -2,16 +2,86 @@
 \label{chapter:overview}
 
 \jln{this refers only to the simplifier, expand to include variable solver.}
+
+To compile an image processing pipeline written in the
+  Halide language, the compiler must perform a variety of analyses of
+  the pipeline's properties. For example, if the user marks a
+  loop to be fully unrolled, the compiler must infer a constant upper
+  bound for the extent of the loop. If the user marks
+  a loop as parallel, the compiler must prove the absence of data
+  races. These analyses also affect performance more than in most
+  compilers. In Halide, the compiler infers loop bounds and allocation sizes.
+  If these are overestimated, the generated code may
+  perform an amount of wasted work sufficient to alter the
+  computational complexity of the algorithm. These analyses all depend
+  critically on the quality of Halide's expression simplifier. In
+  fact, Halide relies so heavily on its simplifier that restricting it
+  to mere constant-folding causes a geomean 5.1$\times$ increase in
+  compilation times and a 26.4$\times$ increase in runtimes across
+  Halide's benchmark suite.  
+
+
 The Halide compiler contains a term rewriting system composed of over a thousand
 rules, operating over the space of Halide expressions\footnote{See Supplemental Material for
-the full Halide expression grammar}.  \modified{The language of Halide expressions
+the full Halide expression grammar}. The language of Halide expressions
 operates over vectors and scalars of integers, booleans, and real values.  However, in
 this work we concentrate on the TRS as it applies to integer and boolean values, for
 both vectors and scalars, because the most important uses of the TRS within the compiler
 apply to these types.  In this section, we give some background on term rewriting systems.
 We then describe how the Halide compiler uses the TRS
 and the design decisions that motivate the custom rewriting engine, as well as the scope
-of our work.}
+of our work.
+
+
+%\modified{When the Halide language compiles an image processing pipeline, its compiler must issue a 
+%variety of queries over the pipeline's properties. For example, it may attempt to prove a 
+%loop extent can be reduced to a constant, allowing the loop to be fully unrolled; it may 
+%check properties as part of dependency analysis to show that two loops contain no hazards 
+%and can be parallelized; or it may try to prove that certain optimizations can be safely 
+%performed, such as lowering code to cheaper instructions. The solver that addresses these 
+%queries is so vital to the compiler that removing it results in 5.1$\times$ increase in compilation 
+%times and 26.4$\times$ increase in runtimes for even simple benchmarks. }
+
+This simplifier must balance three key criteria:
+
+\begin{itemize}
+  \item \textbf{Completeness:}
+It must work in 
+the theory of integers, which is undecidable, and make use of operations such as 
+Euclidean division and maximum/minimum which can be especially difficult for 
+automated reasoning. Although any solver in this theory is necessarily incomplete, but in general, 
+the compiler can generate higher-performing code as the simplifier becomes more powerful.
+  \item \textbf{High performance:} However, the simplifier is called many thousands of 
+times over the course of a single compilation, and so requires high performance and low memory usage.
+  \item \textbf{Determinism:} The compiler must always return the same 
+result for the same program, regardless of what platform runs the compiler, 
+so the simplifier must be deterministic. This is a hard requirement.
+\end{itemize}
+
+%\modified{Determinism is a hard requirement for the design of the
+%  simplifier, which rules out techniques with unbounded runtimes that
+%  rely on timeouts.  Given that constraint, the Halide simplifier must
+%  address as many of the compiler's queries as possible while
+%  maintaining high performance.}
+
+Halide addresses this problem with a \emph{term rewriting system}. Using a custom algorithm 
+that greedily applies rules in a fixed order and keeps only the expression being currently 
+rewritten as state, the term rewriting system (TRS) provides the performance and determinism 
+that the compiler requires. This algorithm scales well in terms of the number of rules
+in the TRS, so Halide developers continue to improve and increase its
+power by refining the ruleset and adding new rules by hand.
+
+However, maintaining a TRS by hand presents significant challenges. Rules are 
+carefully inspected and fuzz-tested, but are not formally proven sound. The 
+rule application algorithm itself is not guaranteed to terminate, so changing, adding, or 
+reordering rules may result in cycles on untested inputs. Debugging the system can be 
+difficult, since it is not clear which rule or combination of rules is responsible for 
+undesired behavior. The TRS is not complete enough to address all compiler queries 
+(for example, it may fail to compute tight bounds on intermediate arrays, leading to over-allocations).
+Finally, although the overarching goal of the TRS is to simplify 
+expressions, ``simplify'' is an imprecise notion. If developers are not familiar with 
+the entire ruleset, or the full variety of applications of the simplifier, they may inadvertently 
+add a rule that makes the simplifier worse for some of its usecases.
 
 \section{Term Rewriting Systems}
 
@@ -45,17 +115,17 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \section{Term rewriting systems in the Halide compiler}
 
 \jln{again, all specific to simplifier; add variable solver content}
-\subsection{\modified{Uses of the TRS in Halide}}
+\subsection{Uses of the TRS in Halide}
 \label{sec:uses-of-trs}
-\modified{While the Halide compiler makes use of the TRS in numerous ways, the most important
+While the Halide compiler makes use of the TRS in numerous ways, the most important
   applications of the TRS are its uses as a fast simplifier and as a proof engine.  
   In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
   which are easier for the compiler to reason about, and result in less code being generated for
   LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
   into constants or expressions that are monotonic with respect to loop bounds; these simplifications are core to Halide's
-  ability to generate drastically different loop nests for different schedules.}
+  ability to generate drastically different loop nests for different schedules.
 
-\modified{For example, consider the simple two-stage imaging pipeline $g(x) = f(x - 1) + f(x) + f(x + 1)$.
+For example, consider the simple two-stage imaging pipeline $g(x) = f(x - 1) + f(x) + f(x + 1)$.
   Halide enables programmers to fuse the computation of $f$ into $g$ at an arbitrary granularity
   using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
   about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
@@ -69,16 +139,16 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
   threadblock must have a compile-time-known size).  More generally, this kind of region analysis
   operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
   arithmetic can result in vast overestimates of required regions.  These simplifications are essential
-  for the compiler to work, and are usually not as simple as this example.}
+  for the compiler to work, and are usually not as simple as this example.
 
-\modified{The rules for simplifying to perform cancellations and
+The rules for simplifying to perform cancellations and
   ensure monotonicity are incredibly important for compiler
   performance. When we disabled all but the constant-folding rules to
   measure the importance of the simplifier, it was the absence of
   these specific rules that caused the (26.4$\times$) slow-down
   mentioned in Section~\ref{sec:introduction}. Without these rules,
   Halide is useless for high-performance image
-  processing.}
+  processing.
 
 %% Fodder from synthesis section:
 %% For example, Halide relies on symbolic interval arithmetic to determine how much memory
@@ -94,24 +164,24 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 %% above by 100, by setting the first instance of $x$ to 100 and the
 %% second instance of $x$ to zero.
 
-\modified{The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
+The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
   correctness of specific transformations or the relationships between bounds of
   different loops or producer-consumer relationships.  In such cases, the compiler constructs
   an expression that must be true or false in order to guarantee correctness, then applies
-  the TRS to see if the expression simplifies to a single boolean value.}
+  the TRS to see if the expression simplifies to a single boolean value.
 
-\modified{For example, Halide uses Euclidean division, which rounds according to the sign of the
+For example, Halide uses Euclidean division, which rounds according to the sign of the
   denominator.  Lowering this to code requires emitting several instructions, which can be
   slower than native division.  When the compiler can statically prove the signs of the numerator
   and denominator, in some cases the code can be replaced by native division or even a different
   instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
   will try to prove $0 < \hmax(y, 1)$.  The TRS first invokes a rule to transform this to
   $0 < y\; ||\; 0 < 1$, which then is transformed to true (since the second clause is always true).
-  Thus, the compiler is able to replace Euclidean division with machine division.}
+  Thus, the compiler is able to replace Euclidean division with machine division.
 
-\modified{TRS failures have adverse results on the compiler, making it unpredictable and
+TRS failures have adverse results on the compiler, making it unpredictable and
   difficult for programmers to use.  When the TRS fails to properly simplify an expression or
-  prove a property, the consequences include: }
+  prove a property, the consequences include: 
 \begin{itemize}
 \item Insufficiently tight bounds on loops and allocations, which may result in
   runtime failures (e.g. due to memory overallocation) or performance issues;
@@ -248,7 +318,7 @@ robust and able to generate fast code.
 \subsection{Why a Custom Algorithm?}
 \label{sec:whycustom}
 
-\modified{In a term rewriting system, a single rule may be able to match an input expression in 
+In a term rewriting system, a single rule may be able to match an input expression in 
 multiple ways, and there may be multiple rules in the ruleset which could be used 
 to rewrite the expression. A term rewriting algorithm might choose one of many alternatives 
 and later backtrack if it turns out not to be fruitful; it might make use of 
@@ -258,18 +328,18 @@ keeps only one expression in state and applies rules greedily, in a fixed priori
 This is very fast and requires very little memory; the tradeoff is that the algorithm 
 may pick the ``wrong'' rule and have no way of undoing that decision. 
 Since the rewriter is invoked thousands of times with each call of the compiler, 
-it chooses to sacrifice some solving power in exchange for performance.}
+it chooses to sacrifice some solving power in exchange for performance.
 
-\subsubsection{\modified{Halide's Custom TRS Algorithm}}
+\subsubsection{Halide's Custom TRS Algorithm}
 \label{sec:customalgo}
 The Halide term rewriting algorithm simplifies an input expression in a
 depth-first, bottom-up traversal of the expression DAG. At each node, it 
 uses the root node to pick a list of rules, then
 attempts to match the subtree expression with the rule LHSs in a fixed priority. Matching
 is performed purely syntactically, using C++ template metaprogramming.
- \modified{Halide rewrite rules contain special metavariables,
+ Halide rewrite rules contain special metavariables,
 called \emph{symbolic constants}, that can match only with constant values; all other
-variables can match any subterm as usual.}
+variables can match any subterm as usual.
 When a match is found, the algorithm rewrites the
 subtree expression using the RHS of that rule, and then attempts to simplify the
 subtree expression again. If no rule matches the subtree, the traversal
@@ -285,11 +355,11 @@ rules sometimes have predicates that check if
 matches an expression, its guard is evaluated and only if it
 is true will the rewrite be applied.
 
-\modified{Halide rewrite rules are applied in a fixed priority, organized so that the TRS 
+Halide rewrite rules are applied in a fixed priority, organized so that the TRS 
 first attempts very basic rules such as constant folding, then tries more specific 
-rules before more general ones. (We do not evaluate the current rule priority in this work.)}
+rules before more general ones. (We do not evaluate the current rule priority in this work.)
 
-\modified{Associativity and commutativity laws are particularly troublesome for term rewriting systems. 
+Associativity and commutativity laws are particularly troublesome for term rewriting systems. 
 For one expression $e$, the number of semantically equivalent expressions grows 
 exponentially in terms of the number of AC operations $e$ contains. Some term rewriting 
 systems perform a full \emph{AC matching} step during rewriting. Halide's TRS does not
@@ -299,7 +369,7 @@ However, a small number of Halide's rewrite rules have the effect of canonicaliz
 expressions. (For example, if a commutative expression has a multiplication as its 
 first operand and a subtraction as its second operand, a rule will switch their positions.)
 These rules are all early in the application priority, so later rules can rely on
-expressions having a quasi-canonical form.}
+expressions having a quasi-canonical form.
 
 \subsubsection{Why Not Z3?}
 \begin{table}
@@ -318,26 +388,26 @@ Given that we make use of the Z3 solver~\cite{de2008z3} for both verification an
 
 As discussed above, the Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
-\modified{While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
-gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression. }
+While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
+gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression.
 A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions that are not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. This set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
 
 Because the Halide algorithm at every step chooses one rule to apply to the single expression it is working on, it scales well in terms of the number of rules in the TRS. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
 Finally, although Z3 can simplify expressions, simply reducing the size of an expression is not necessarily the goal for the compiler. For example, gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide rewriter uses a domain-specific strategy to guide expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
 
-\subsection{\modified{Completeness of the Halide TRS}}
+\subsection{Completeness of the Halide TRS}
 \label{sec:completion}
 
-\modified{We know by observation that the current Halide TRS cannot prove certain equalities 
+We know by observation that the current Halide TRS cannot prove certain equalities 
 that are in fact true, or reduce certain expressions that can be further simplified. 
 Our goal is to learn new rules that would strengthen the TRS and allow it to make
 further progress on these ``stuck'' expressions. This goal seems similar to that of 
 \emph{completion}, which constructs a decision procedure through syntatic rewrites
 for a set of identities. We do not use completion directly, although
-our synthesis algorithm could be considered analogous to completion in some ways.}
+our synthesis algorithm could be considered analogous to completion in some ways.
 
-\modified{In the standard Knuth-Bendix completion algorithm~\cite{knuth1983simple}, we take a
+In the standard Knuth-Bendix completion algorithm~\cite{knuth1983simple}, we take a
 finite set of identities $E$ and a reduction order $>$ on terms as inputs; if successful, the
 algorithm will return a finite, convergent set of rules $R$ that is equivalent to 
 $E$. The algorithm may also fail, or fail to terminate. At each step the algorithm
@@ -345,9 +415,9 @@ maintains a set of identities and a set of rules, both of which can be updated; 
 algorithm may transform an identity into a new rule, find a new identity as a 
 consequence of the ruleset, or use the present ruleset to refine either an identity 
 or a rule. The algorithm runs until the ruleset has converged; specific implementations
-may use some conditions under which to terminate with a failure.}
+may use some conditions under which to terminate with a failure.
 
-\modified{No finite set of identities exists for the theory of integers. We could
+No finite set of identities exists for the theory of integers. We could
 fix a set of identities to use in a completion procedure, but choosing these axioms
 is a non-trivial task. One issue is that the theory contains axioms such as commutativity;
 an identity such as $x + y \equiv y + x$ cannot be oriented by any possible reduction 
@@ -356,7 +426,7 @@ sufficiently powerful set of identities would almost certainly result in a non-t
 completion procedure.  In addition, even if we use a subset of the Halide TRS for our
 identities (thus yielding a confluent Halide TRS), our experience shows that many
 failures in the compiler's use of the TRS are due to missing semantic facts that are not
-derivable from the current Halide ruleset.}
+derivable from the current Halide ruleset.
 
 %%% SAK: I integrated this into a sentence above.  Not sure we need this much text.
 %% \modified{One approach might be to transform the existing Halide TRS into a set of undirected
@@ -368,7 +438,7 @@ derivable from the current Halide ruleset.}
 %% lack of confluence, but because of knowledge of the Halide expression langauge semantics 
 %% not encompassed by the identities in $E_R$.}
 
-\modified{%Instead, our synthesis algorithm seeks to learn rules which cannot (necessarily) be 
+%Instead, our synthesis algorithm seeks to learn rules which cannot (necessarily) be 
   %deduced from the existing ruleset.
 In the absence of a finite set of identities, we
 treat an SMT solver as a decision procedure to determine if a suggested identity 
@@ -378,9 +448,9 @@ show that an identity holds). If the identity holds and can be oriented using ou
 it is added as a rule. It is possible that the newly-synthesized rule may be a consequence 
 of the existing ruleset and thus could have been found by running completion, 
 but we know that many synthesized rules contain information that is previously 
-unknown to the TRS.}
+unknown to the TRS.
 
-\modified{If we consider our solver as standing in for an infinite set of identities that make up
+If we consider our solver as standing in for an infinite set of identities that make up
 our theory, we clearly could synthesize an infinite number of rules. Here we make use
 of the fact that expressions encountered by the compiler have some bias 
 and are not sampled randomly from the entire expression space. In a preliminary 
@@ -391,25 +461,24 @@ no measurable performance impact on benchmarks. Thus, we only synthesize rules i
 applied to at least one expression observed by the compiler under realistic usecases. %Even 
 %without a formal definition of the bias on encountered expressions, we are able to 
 %target synthesis to produce new rules that have some impact on compiler output.
-}
 
 \subsection{Scope: Robust, Fast, Non-Backtracking Ruleset}
-\modified{In this work, we operate within the scope of Halide's TRS algorithm
+In this work, we operate within the scope of Halide's TRS algorithm
   and work to make the TRS as correct, general, and robust as possible.  Because
   the space of expressions we consider constitutes an undecidable theory, a complete
   TRS is impossible.  Instead, we strive to improve correctness by ensuring the TRS
   will always terminate on any expression and that each individual rewrite
   preserves semantics; and we improve generality by expanding the ruleset to
   contain rewrites that apply to real-world expressions, rather than
-  arbitrary new rules that may not apply to any expressions the compiler will encounter.}
+  arbitrary new rules that may not apply to any expressions the compiler will encounter.
 
-\modified{These improvements require overcoming challenging obstacles.  First,
+These improvements require overcoming challenging obstacles.  First,
   we must perform a post-hoc verification of a large body of existing rules;
   proving a subset of rules correct or that a subset of rules do not result in infinite
   rewriting loops is insufficient to guarantee robust behavior.  Secondly,
   these rewrites operate in an undecidable theory, making automated verification
   difficult.  Finally, because of this undecidability, we cannot necessarily
-  rely on traditional automated techniques to discover new rules.}
+  rely on traditional automated techniques to discover new rules.
 %\sak{Should we say something about how this applies to things other than Halide?}
 
 \subsubsection{TrimNoOps}
