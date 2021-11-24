@@ -110,12 +110,12 @@
 \end{figure*}
 
 
-\modified{Although the Halide term rewriting system is necessarily incomplete, we can strengthen 
+Although the Halide term rewriting system is necessarily incomplete, we can strengthen 
 it by finding expressions on which the TRS can no longer make progress and creating 
 rules that will further simplify them.
-In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.}
+In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.
 
-\modified{Given an \emph{input expression} that the TRS failed to simplify, our goal is to find a rule that
+Given an \emph{input expression} that the TRS failed to simplify, our goal is to find a rule that
 can rewrite it. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
 %and Algorithm~\ref{alg:synthesis-algorithm} shows the corresponding pseudocode.
 We begin with an expression we will attempt to further simplify; 
@@ -124,11 +124,11 @@ Next we generalize those rules by replacing constant values with symbolic consta
 predicate guards 
 that check the validity of the rule on the values matched by the symbolic constants. If we 
 find such a rule, we know that adding it to the TRS will enable it to simplify the input
-expression as well as any similar expressions it may encounter.}
+expression as well as any similar expressions it may encounter.
 
 The set of input expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
 kinds of problematic expression for which new TRS rules may be helpful:
-\modified{non-monotonic expressions, which can result in over-conservative
+non-monotonic expressions, which can result in over-conservative
 bounds for loops and memory allocations; and proof failures,
 which may prevent Halide from performing certain optimizations
 (see Section~\ref{sec:uses-of-trs}). 
@@ -137,7 +137,7 @@ some expression or if it lacks the solving power to continue simplification.
 When the TRS is used as a proof engine, its goal is to reduce an expression to true.
 In this case, we can fuzz-test failed proofs by assigning all variables in an expression
 random values and evaluating; if we cannot find an assignment that evaluates to false,
-the expression may indeed be reducible to true, so we log it as an input expression.}
+the expression may indeed be reducible to true, so we log it as an input expression.
 
 
 \begin{figure*}
@@ -209,13 +209,13 @@ cannot form a rule, so we filter it out as a candidate.
 
 \subsection{Synthesizing Right-Hand Sides} 
 \label{sec:synthesizing-candidate-rules}
-\modified{%
+%
 Given a candidate left-hand side, we attempt to 
 synthesize a right-hand side that is semantically equivalent and
 respects the reduction order, namely $\mathit{LHS} > \mathit{RHS}$.
 We employ two strategies for synthesizing right-hand sides:
 delayed AC matching, and counter-example guided inductive synthesis (CEGIS) of 
-the RHS followed by synthesis of the rule predicate guard.} 
+the RHS followed by synthesis of the rule predicate guard.
 
 \subsubsection{Finding Right-Hand Sides through AC Matching}
 \label{sec:rhsacmatching}
@@ -236,14 +236,14 @@ variants of existing rules is far cheaper. About three-quarters of our synthesiz
 
 \subsubsection{Finding Right-Hand Sides through CEGIS}
 \label{sec:rhssynthesis}
-\modified{If the first method fails, we apply counterexample guided inductive synthesis (CEGIS)~\cite{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
+If the first method fails, we apply counterexample guided inductive synthesis (CEGIS)~\cite{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
 In superoptimization~\cite{massalin1987superoptimizer}, we take a program and search 
 for an equivalent program within some grammar that is preferable according 
 to some cost function. Here our grammar is that of the Halide expression language, 
 the method for testing program equivalence is the Z3 solver, and we use the node
-count of the programs as a proxy for our full reduction order.}
+count of the programs as a proxy for our full reduction order.
 
-\modified{Similar to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization},
+Similar to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization},
 we search the expression space for an equivalent RHS using a CEGIS loop. This loop alternately calls Z3 as a
 verifier, which checks if a candidate RHS is equivalent to the LHS on all inputs, 
 and a learner, which finds a candidate RHS that is equivalent to the LHS on
@@ -257,9 +257,9 @@ only on the counterexample assignments we found in the last step.
 If we cannot find an equivalent single-op sequence,
 we iteratively increase the number of operations, ensuring we find shorter sequences
 first.  If CEGIS returns a sequence semantically equivalent to the LHS pattern with fewer
-operations, we use it together with our LHS to form a candidate rule.}
+operations, we use it together with our LHS to form a candidate rule.
 
-\modified{ The learner portion of the CEGIS loop creates a candidate RHS
+ The learner portion of the CEGIS loop creates a candidate RHS
   %expression from a parameterized bytecode
   %sequence of fixed size that is fed to an interpreter. Each bytecode
   %instruction takes parameters that select between the possible operators and
@@ -288,7 +288,7 @@ operations, we use it together with our LHS to form a candidate rule.}
   the expression tree could be bounded by the number of ops in its SSA
   form. However, we could not identify any significant rewrite rules
   lost to this filtering, so we deemed this an unnecessary
-  complication. }
+  complication. 
 
 While Z3 is a powerful tool for synthesis, there are certain types of expressions 
 containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
@@ -320,52 +320,52 @@ $\hmin((x + ((y - x)/c_0)*c_0) + c_1, y)$ & $y$ & $1 <= c_1 \wedge -1 <= (-1/c_0
 \subsection{Generalizing Constants and Finding Predicate Guards}
 \label{sec:generalizing-constants}
 
-\modified{If either AC-matching search (Section~\ref{sec:rhsacmatching}) or CEGIS-based synthesis (Section~\ref{sec:rhssynthesis}) were successful, 
+If either AC-matching search (Section~\ref{sec:rhsacmatching}) or CEGIS-based synthesis (Section~\ref{sec:rhssynthesis}) were successful, 
 we now have a candidate rewrite
 rule that contains concrete values originating from the input expression.
 To generalize the rule, we replace such constants with fresh \emph{symbolic constants} 
 and synthesize a guard that is true when the rule is valid. 
 Recall that in the Halide TRS, a variable in the LHS matches any subterm, while a 
-symbolic constant matches only a constant value (see Section~\ref{sec:customalgo}); the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. }
+symbolic constant matches only a constant value (see Section~\ref{sec:customalgo}); the guards, which are predicates over symbolic constants, can thus be evaluated at compile time. 
 
-\modified{Our goal is to generalize the equality by synthesizing a guard predicate $\phi$ 
+Our goal is to generalize the equality by synthesizing a guard predicate $\phi$ 
 over the symbolic constants in the LHS and RHS terms such that our rule is valid whenever
-$\phi$ evaluates to true: }
+$\phi$ evaluates to true:
 \[ \forall \vec{c} \forall \vec{x} \;.\; \phi(\vec{c}) \implies LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
 \]
 
-\modified{First, we check to see if this condition is satisfied when $\phi$ is 
+First, we check to see if this condition is satisfied when $\phi$ is 
 always true. If it is, then no predicate guard is needed. Otherwise, we need 
 to synthesize an expression for $\phi$. We find candidates for $\phi$ iteratively 
 by first choosing a small set of values $S$ for the variables 
 in $\vec{x}$ and finding the candidate guard $\phi_S$. We check to see if $\phi_S$
 is a sufficient predicate guard for all $\vec{x}$; if it is not, we add
-counterexamples to the set $S$ and repeat.}
+counterexamples to the set $S$ and repeat.
 
 \[ \forall \vec{c} \forall \vec{x} \in S \;.\; \phi_S(\vec{c}) \implies LHS(\vec{x},\vec{c}) = RHS(\vec{x},\vec{c})
 \]
 
-\modified{We initialize $S$ with all basis vectors, which are 
+We initialize $S$ with all basis vectors, which are 
 values $\vec{x} = ( 0, \ldots, 0, 1, 0, \ldots, 0 )$ that include exactly one unit value,
 plus the zero vector.  
 We then unwind the right-hand side of the implication and substitute in the concrete values 
-from $S$ to get:}
+from $S$ to get:
 
 \[ \forall \vec{c} \forall \vec{x} \in S \;.\; \phi_S(\vec{c}) \implies (LHS(\vec{x_1},\vec{c}) = RHS(\vec{x_1},\vec{c}) \wedge \ldots \wedge
 LHS(\vec{x_k},\vec{c}) = RHS(\vec{x_k},\vec{c}))
 \]
 
-\modified{We use the Halide TRS itself to simplify the conjunction on the right-hand side of the
+We use the Halide TRS itself to simplify the conjunction on the right-hand side of the
 implication. Since all occurrences of $\vec{x}$ have been replaced with concrete
 values, we get back an expression that contains only symbolic constants, which we
-use as our candidate guard $\phi_S$. }
+use as our candidate guard $\phi_S$.
 
-\modified{We test whether $\phi_S$ is sound on all $\vec{x}$. }
+We test whether $\phi_S$ is sound on all $\vec{x}$.
 \[ \exists \vec{c} \; \exists \vec{x} 
    \;.\; LHS(\vec{x},\vec{c}) \not= RHS(\vec{x},\vec{c})
 \]
 
-\modified{If this query has a solution $\vec{x}$, then the guard is unsound.  
+If this query has a solution $\vec{x}$, then the guard is unsound.  
 If so, we add the counterexample $\vec{x}$ to $S$, and construct a new guard $\phi_S$.  
 We repeat this process for several iterations (four, in our experiments) and if 
 we fail to find a sound guard, we switch to an alternative strategy that converts 
@@ -374,14 +374,14 @@ each clause in turn to check if it is a sufficient guard.
 If it is, that clause becomes the guard.  If no clause is sound, we discard the rule.
 If the loop terminates with Z3 timing out or returning ``unknown'', we return
 the current $\phi_S$, flagging it as requiring a manual proof. 
-We exclude all such cases from our experiments.}
+We exclude all such cases from our experiments.
 
 
-\modified{As an example, consider the candidate rule:}
+As an example, consider the candidate rule:
 %
 \[ x_0 < \hsel(x_1, c_0, c_1) + x_0 \rewrites \neg x_1
 \]
-\modified{We initialize $S$ with three basis vectors $\{(0,\mathit{false}), (0,\mathit{true}), (1,\mathit{false})\}$ and construct $\phi_S$:}
+We initialize $S$ with three basis vectors $\{(0,\mathit{false}), (0,\mathit{true}), (1,\mathit{false})\}$ and construct $\phi_S$:
 %
 \begin{equation*}
 \begin{split}
@@ -394,12 +394,11 @@ We exclude all such cases from our experiments.}
 \end{split}
 \end{equation*}
 
-\modified{Simplifying the RHS with the TRS, we obtain $\phi_S$: }
+Simplifying the RHS with the TRS, we obtain $\phi_S$:
 %
 \[  \phi_S(\vec{c}) \iff 0 < c_1 \wedge c_0 \le 0
 \]
 
-\newpage 
 Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, so we have a completed rule:
 
 \[ x_0 < \hsel(x_1, c_0, c_1) + x_0) \rewrites \neg x_1 \;\pred \;0 < c_1 \wedge c_0 \le 0
@@ -408,7 +407,7 @@ Next we check whether $\phi_S$ is sound for all $\vec{x}$.  It is, so we have a 
 
 \subsection{Adding Rule Variants}
 \label{sec:rulevariants}
-\modified{Once we have a generalized rule with a valid predicate, we eagerly compensate for the lack
+Once we have a generalized rule with a valid predicate, we eagerly compensate for the lack
 of AC matching in the Halide TRS by adding AC variants of the rule as well. We find 
 all commuted variants of the rule's LHS,
 with respect to the partial commutative canonicalization as described in Section~\ref{sec:customalgo}.
@@ -416,12 +415,12 @@ with respect to the partial commutative canonicalization as described in Section
 of commutative operators, which is tractable given our bounds on LHS term size). 
 Then, we find all reassociations of the rule's right-hand side. For each variant LHS, 
 we choose a RHS variant by serializing expressions to strings and finding the RHS 
-that has the shortest edit distance from that LHS. }
+that has the shortest edit distance from that LHS.
 
-\modified{For example, the LHS of the first rule below has four additions and can be commuted 
+For example, the LHS of the first rule below has four additions and can be commuted 
 to 16 variants. The RHS of the rule can be reassociated in two different ways. For the 
 commuted variant of the LHS on the second line, we choose the other means of reassociating
-the RHS as it has a smaller edit distance.}
+the RHS as it has a smaller edit distance.
 
 \begin{equation*}
 \begin{split}
@@ -430,22 +429,22 @@ the RHS as it has a smaller edit distance.}
 \end{split}
 \end{equation*}
 
-\modified{The intuition is that there is no a priori reason 
+The intuition is that there is no a priori reason 
 to prefer one reassociated variant to another; they are almost certainly equal in 
 terms of our reduction order. Thus, we choose the RHS that perturbs the structure of the 
 LHS as little as possible, in order to avoid rewriting common subexpressions in the hopes
-of canceling them out later.}
+of canceling them out later.
 
 
 \subsection{Filtering Rule Output}
 \label{sec:filtering}
-\modified{As a final step, we check each output rule for redundancy with the rule batch found
+As a final step, we check each output rule for redundancy with the rule batch found
 by the synthesis pipeline. For each new rule, we check
 that no earlier rule has precisely the same LHS and predicate; if so, it can be discarded.
 Then, we check that no earlier rule is more general than the current rule: a rule is more 
 general than another if they have similar LHSs, but a variable appears in the first rule 
 in a place where the second rule has a more specific subterm, or if they have the same LHS
-but the predicate of the first rule implies the predicate of the second.}
+but the predicate of the first rule implies the predicate of the second.
 
 Finally, we
 check that the candidate rule obeys our reduction order in order to
@@ -503,14 +502,14 @@ We discuss these findings in more detail below, grouping them into three section
 % I) https://github.com/halide/Halide/pull/4850 
 
 
-We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS. \modified{These can be found as summarized diffs $\mathbb{A}$-$\mathbb{E}$ in supplemental material, or in their original form on the Halide project website
+We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS. These can be found as summarized diffs $\mathbb{A}$-$\mathbb{E}$ in supplemental material, or in their original form on the Halide project website
 \footnote{
 $\mathbb{A}$: \url{https://github.com/halide/Halide/pull/3719}
 $\mathbb{B}$: \url{https://github.com/halide/Halide/pull/3761}
 $\mathbb{C}$: \url{https://github.com/halide/Halide/pull/3765}
 $\mathbb{D}$: \url{https://github.com/halide/Halide/pull/3770}
 $\mathbb{E}$: \url{https://github.com/halide/Halide/pull/3780}
-}.}
+}.
 Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
 In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human but also crafted 8 commuted variants of the human rules, making them more widely applicable. 
@@ -583,7 +582,7 @@ We tested the synthesizer's ability to recreate the original ruleset in the foll
 
 We have found that human experts can best leverage the strengths of the synthesis tool by using it as an assistant: for example by synthesizing a rule and then generalizing or simplifying it by hand, or by writing a rule and asking the tool to synthesize a valid predicate. Most importantly, this avoids committing new bugs, but it also accelerates rule development. Halide developers report that adding new rules by hand takes about 30 minutes per rule starting from sample input expressions through final review. Starting from the same input expressions, the synthesis tool can produce a batch of 10 verified rules in about 5 minutes.
 
-Here we survey some cases from recent Halide development where the synthesis machinery was used in this way. \modified{The diffs are available as $\mathbb{F}$ through $\mathbb{I}$ in supplemental material or on the Halide project website\textsuperscript{\ref{footnote:casesfi}}.}
+Here we survey some cases from recent Halide development where the synthesis machinery was used in this way. The diffs are available as $\mathbb{F}$ through $\mathbb{I}$ in supplemental material or on the Halide project website\textsuperscript{\ref{footnote:casesfi}}.
 
 In case $\mathbb{F}$ a Halide developer encountered expressions that seemed like they could be simpler while working on real code, and rather than inventing a rule from scratch searched the logs of the synthesizer project for a known-correct synthesized rule that handled the case in question. This added four new rules that are variants of:
 \[
@@ -872,6 +871,9 @@ Note that when we gathered input expressions in prior work, we did not check to 
 Given these three assumptions, we propose the synthesis pipeline in algorithm~\ref{algo:synthesis}. 
 
 \subsection{The Halide variable solver}
-The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \circ e$, where $v$ is the target variable, $\circ \in \{=, \neq, >, \geq, <, \leq\}$, and $e$ is a term that does not contain the target variable $v$.
 
-$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about 50 rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
+The Halide simplifier was a fairly mature system, in production for over a year and consists of almost a thousand rules. The Halide variable solver, by contrast, is a much smaller system, currently implemented as a series of if statements rather than a formal term rewriting system, and consisting of the equivalent of less than a hundred rules. The simplifier's use cases were quite varied and complex, and the existing ruleset required a complex composite reduction order to cover their full purpose. The variable solver is much smaller and more focused and can be captured by much simpler reduction orders. With the variable solver, therefore, we have the opportunity to experiment with various reduction orders to find the one that fulfills the system's purpose best, and to synthesize a TRS entirely from scratch, rather than augment an existing system.
+
+% synthesis pipeline: Rosette, encoding reduction order as metasketches, metasketch search order, etc
+% discussion of different granularities of reduction order
+% evaluation of various synth'd TRSs
