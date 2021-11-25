@@ -1,4 +1,4 @@
-\section{Synthesis for variable solver}
+\section{Synthesizing a variable solver}
 
 \begin{algorithm}[H]
 \SetAlgoLined
@@ -16,12 +16,7 @@
 \label{algo:synthesis}
 \end{algorithm}
 
-In our prior work, we synthesized individual rules to augment an already mature term rewriting system. In our proposed work, we plan to synthesize term rewriting systems from a small existing ruleset or completely from scratch. Our pipeline is sketched out below. In this section, we first justify the assumptions behind our approach. We then lay out our planned evaluation of our methodology on a new application, the variable solver term rewriting system within the Halide compiler.
-
-An idealized version of our proposed synthesis procedure is laid out in algorithm~\ref{algo:synthesis}. This procedure requires a goal function, which returns true if a term is in some desired form and false otherwise; a semantic equivalence relation; and a reduction order over terms, as well of a set of training expressions $E$, which should be representative of the types of expressions the term rewriting system will take as input and a set of test expressions $S$ on which to evaluate the behavior of the term rewriting system.
-
-
-
+Having demonstrated that we can synthesize rules to augment an existing, handwritten term rewriting system, it is natural to next synthesize a term rewriting system entirely from scratch. By back-fitting a reduction order to conform with the existing simplifier rules, we essentially derived a specification from an existing implementation (one could consider this an example of programming by demonstration, albeit one with a very large number of example programs). We define some possible reduction orders that represent strategies or gradients along which to rewrite expressions to bring them closer to the desired solved form with regard to the specified variable. We then evaluate these orders by synthesizing entirely new term rewriting systems using the orders as specifications and evaluating their performance on a suite of benchmarks.
 
 \subsection{Rationale for synthesis pipeline}
 
@@ -236,7 +231,25 @@ Similar issue if we are allowed to reorder target-matching variables
 \jln{finish proof and write formal definition of order}
 
 \subsection{Move occurrences of target-matching variables up}
+\jln{formally define order and prove it is a valid reduction order}
 
+\subsection{Put rewritten expression into fully solved form}
+
+\jln{formally define order and prove it is a valid reduction order}
+
+\section{The synthesis algorithm}
+
+How the Rosette synthesis procedure works
+
+Strategy for prioritizing the search space: sorting input expressions by size, choice of LHS from a given input expression, choice of sketches
+
+Encoding reduction orders as metasketches
+
+\section{Evaluation of synthesized TRSs}
+
+Evaluate synthesized TRSs on set-aside input expressions, against performance of handwritten solver.
+
+Put into Halide compiler and see if any difference on compiled pipelines is observable.
 
 
 \section{Related work}

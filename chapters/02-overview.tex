@@ -3,19 +3,13 @@
 
 We define term rewriting systems and give some background. We then discuss the use of term rewriting systems in the Halide compiler and describe the two main such systems, the \emph{simplifier} and the \emph{variable solver}. We describe the rewriting algorithm used by the Halide compiler and discuss the requirements that led to its design choices. 
 
-\jln{this refers only to the simplifier, expand to include variable solver.}
-
-
-
-
-The Halide compiler contains a term rewriting system composed of over a thousand
-rules, operating over the space of Halide expressions (see appendex~\ref{a:grammar} for
+The Halide compiler contains term rewriting systems operating over the space of Halide expressions (see appendex~\ref{a:grammar} for
 the full Halide expression grammar). The language of Halide expressions
 operates over vectors and scalars of integers, booleans, and real values.  However, in
 this work we concentrate on the TRS as it applies to integer and boolean values, for
 both vectors and scalars, because the most important uses of the TRS within the compiler
 apply to these types.  In this section, we give some background on term rewriting systems.
-We then describe how the Halide compiler uses the TRS
+We then describe how the Halide compiler uses term rewriting systems as reasoning engines
 and the design decisions that motivate the custom rewriting engine, as well as the scope
 of our work.
 
@@ -207,7 +201,7 @@ robust and able to generate fast code.
 
 The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \circ e$, where $v$ is the target variable, $\circ$ is some binary operator, and $e$ is a term that does not contain the target variable $v$.
 
-$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about 50 rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
+$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about a hundred rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
 
 Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term $t$. We use the special variable $x^t$ to stand for the target variable, or the variable that the TRS is 'solving' for.
 
@@ -218,33 +212,41 @@ We say that a term $t$ is in \emph{solved form} if it is in the form:
   \item $t = x^t \circ t'$, where $\circ$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
 \end{enumerate}
 
-\subsubsection{TrimNoOps}
+Some uses of the variable solver in the Halide compiler include:
 
-When compiling a pipeline, the Halide compiler will attempt to truncate loop bounds to the regions where work is actually performed. The TrimNoOps phase examines a for loop and attempts to prove that some regions of the loop are no-ops; if it can show this, it rewrites the loop so those regions are never visited. The variable solver used in performing this reasoning.
+\begin{itemize}
+	\item \textbf{Trimming no-ops} The variable solver is used in analyzing the conditions under which work is performed within nested for-loops. For example, imagine that the body of an inner for-loop over some variable $x$ only performs an operation when the condition of some if-statement is true. If the compiler can show that this condition will only hold for a limited range of the values for $x$, then it can skip the regions where only a no-op will be performed by truncating the loop. Isolating $x$ as much as possible is helpful in performing this analysis.
+	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
+	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
+\end{itemize}
 
-For example, consider a for loop that applies the following function over some range of $x$ and $y$:
-
-\begin{verbatim}
-f(x, y) = x + y + select((x == 10) && (x < y), 1, 0)
-\end{verbatim}
-
-After several compilation phases, the for loop is transformed into:
-
-\begin{verbatim}
-f = {
-	for(y, y_min, y_extent) {
-		for(x, x_min, x_extent) {
-			f[(y * stride + x) - (y_min * stride + x_min)] = x + y
-		}
-	}
-	for(y, y_min, y_extent) {
-		for(x, x_min, x_extent) {
-			f[(y * stride + x) - (y_min * stride + x_min)] = 
-			f[(y * stride + x) - (y_min * stride + x_min)] + select((x == 10) && (x < y), 1, 0)
-		}
-	}
-}
-\end{verbatim}
+%\subsubsection{TrimNoOps}
+%
+%When compiling a pipeline, the Halide compiler will attempt to truncate loop bounds to the regions where work is actually performed. The TrimNoOps %phase examines a for loop and attempts to prove that some regions of the loop are no-ops; if it can show this, it rewrites the loop so those %regions are never visited. The variable solver used in performing this reasoning.
+%
+%For example, consider a for loop that applies the following function over some range of $x$ and $y$:
+%
+%\begin{verbatim}
+%f(x, y) = x + y + select((x == 10) && (x < y), 1, 0)
+%\end{verbatim}
+%
+%After several compilation phases, the for loop is transformed into:
+%
+%\begin{verbatim}
+%f = {
+%	for(y, y_min, y_extent) {
+%		for(x, x_min, x_extent) {
+%			f[(y * stride + x) - (y_min * stride + x_min)] = x + y
+%		}
+%	}
+%	for(y, y_min, y_extent) {
+%		for(x, x_min, x_extent) {
+%			f[(y * stride + x) - (y_min * stride + x_min)] = 
+%			f[(y * stride + x) - (y_min * stride + x_min)] + select((x == 10) && (x < y), 1, 0)
+%		}
+%	}
+%}
+%\end{verbatim}
 
 %%% the example itself is easy to understand but it doesn't actually make use of the variable solver in solving it (it does call it, just doesn't get back interesting results)
 
@@ -448,7 +450,7 @@ Finally, although Z3 can simplify expressions, simply reducing the size of an ex
 \subsection{Completeness of the Halide TRS}
 \label{sec:completion}
 
-We know by observation that the current Halide TRS cannot prove certain equalities 
+We know by observation that the Halide simplifier TRS cannot prove certain equalities 
 that are in fact true, or reduce certain expressions that can be further simplified. 
 Our goal is to learn new rules that would strengthen the TRS and allow it to make
 further progress on these ``stuck'' expressions. This goal seems similar to that of 

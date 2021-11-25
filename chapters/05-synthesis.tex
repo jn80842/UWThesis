@@ -108,10 +108,10 @@
 \end{figure*}
 
 
-Although the Halide term rewriting system is necessarily incomplete, we can strengthen 
+Although a Halide term rewriting system is necessarily incomplete, we can strengthen 
 it by finding expressions on which the TRS can no longer make progress and creating 
 rules that will further simplify them.
-In this section, we describe a workflow for automatically augmenting the Halide TRS with new rules.
+In this section, we describe a workflow for automatically augmenting the Halide simplifier TRS with new rules.
 
 Given an \emph{input expression} that the TRS failed to simplify, our goal is to find a rule that
 can rewrite it. A high-level view of the synthesis pipeline is shown in Figure~\ref{fig:synthesis-flow}.
@@ -452,8 +452,6 @@ rule can be added to the TRS ruleset automatically without any human
 auditing.
 
 \section{Evaluation of Simplifier TRS Synthesis}
-
-\section{Evaluation}
 \label{sec:evaluation}
 
 % (1186-367)/1186
@@ -668,7 +666,7 @@ These results show that having verification and synthesis available as a tool fo
 
 \section{Limitations \& Future Work}
 \label{sec:limitations}
-\jln{copied over from OOPSLA paper, but doesn't really belong here}
+\jln{copied over from OOPSLA paper; should keep some discussion of limitations but not sure if future work belongs here}
 For this work, we considered only the subset of the term rewriting system that
 is used to prove properties over infinite integers; the full TRS includes rules
 for simplifying expressions with floating point values as well as rules for
