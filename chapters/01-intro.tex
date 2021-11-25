@@ -20,9 +20,9 @@ We evaluate our work in two case studies. In prior work, we investigated the fir
 
 In our proposed work, we take a look at a smaller and less mature term rewriting system in Halide called the variable solver. In prior work we synthesized new rules for the simplifier largely guided by its large existing ruleset. Here, we plan to evaluate our proposed means of writing specifications for term rewriting system by synthesizing rules to add to the existing ruleset and by synthesizing a ruleset entirely from scratch. We lay out our proposed means of writing specification and our plan to evaluate it in section~\ref{proposed}.
 
-We survey related work in section~\ref{sec:related} and conclude in section~\ref{sec:conclusion}.
+We survey related work in section~\ref{sec:related} and conclude in chapter~\ref{chapter:conclusion}.
 
-\section{Prior work: Maintaining an existing term rewriting system}
+\section{Maintaining an existing term rewriting system}
 \label{sec:prior}
 
 The Halide compiler contains a hand-authored term rewriting system commonly called the simplifier. It is used in many cases within the compiler for making expressions shorter and in a form better suited to downstream uses. Sometimes the simplifier is used as a prover: the truth value of an expression is checked by rewriting it with the simplifier to see if it will be rewritten to the constant true. At the time we began this work, the simplifier was fairly mature: it had been deployed in production for over a year, was both unit tested and fuzz tested, and comprised almost a thousand rules.
@@ -75,8 +75,10 @@ of rules is added to the TRS.
 
  
 
-\section{Proposed work: Synthesizing a new term rewriting system}
+\section{Synthesizing a new term rewriting system}
 \label{proposed}
+
+\jln{more description here}
 
 In our prior work, we synthesized individual rules to augment an already mature term rewriting system. In our proposed work, we plan to synthesize term rewriting systems from a small existing ruleset or completely from scratch. Our pipeline is sketched out below. In this section, we first justify the assumptions behind our approach. We then lay out our planned evaluation of our methodology on a new application, the variable solver term rewriting system within the Halide compiler.
 

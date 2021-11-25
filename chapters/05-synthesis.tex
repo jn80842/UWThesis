@@ -1,8 +1,6 @@
 \chapter{Synthesis}
 \label{chapter:synthesis}
 
-\section{Synthesizing rewrite rules for the simplifier TRS}
-
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \label{sec:completeness}
 %\jln{Possible TODO: I refer to expressions from the corpus we learn from as input expressions throughout. If anyone has a 
@@ -709,17 +707,17 @@ Finally, while enhancing the Halide TRS was not able to improve the performance 
 \section{Synthesis for variable solver}
 
 \begin{algorithm}[H]
-%\SetAlgoLined
-%\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
-%\KwResult{a term rewriting system $R$}
-%\While{$\exists s \in S \st \neg \phi(s)$}{
-%    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
-%        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
-%    \If{$r$ is found}{
-%        R \gets $ R \bigcup \;\{(l \rewrites r)\}$\;
-%        E \gets $ \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
-%    }
-%}
+\SetAlgoLined
+\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
+\KwResult{a term rewriting system $R$}
+\While{$\exists s \in S \st \neg \phi(s)$}{
+    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
+        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
+    \If{$r$ is found}{
+        $R \gets  R \bigcup \;\{(l \rewrites r)\}$\;
+        $E \gets \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
+    }
+}
 \caption{Idealized procedure for synthesizing a term rewriting system}
 \label{algo:synthesis}
 \end{algorithm}
@@ -748,16 +746,16 @@ In prior work, we showed that the Halide simplifier was semantics-preserving by 
 In this section, we will define more precisely the goal or intent behind a term rewriting system. We argue that an effective means of specifying this intent for the purpose of synthesis is to use a reduction order to capture the notion of rewriting a term to be closer to some goal state.
 
 \begin{figure}
-   % \centering
-%    \subfloat[$\termlang$]{\includegraphics[width=0.3\textwidth]{figures/diagram1.png}}
-%    \hspace{1em}
-%    \subfloat[$\{s | s \in \termlang \wedge \phi(s)\}$ in red]{\includegraphics[width=0.3\textwidth]{figures/diagram2.png}}
-%    \hspace{1em}
-%    \subfloat[$\goallang$ in blue]{\includegraphics[width=0.3\textwidth]{diagram3.png}} \\
-%    \subfloat[Undirected edges connect all $s, t$ st. $s =_e t$]{\includegraphics[width=0.3\textwidth]{figures/diagram4.png}}
-%    \hspace{1em}
-%    \subfloat[Directed edges connect all $s, t$ st. $s =_e t \wedge s > t$]{\includegraphics[width=0.3\textwidth]{figures/diagram5.png}}
-%    \caption{Each dot in (a) represents a term in $\termlang$. In (b), each term in the goal state is drawn in red. In (c), all terms which are equivalent to a term in the goal state are drawn in blue. The goal of the term rewriting system is to rewrite all blue dots in (c) to a red dot in (b). In (d), undirected edges connect all pairs of terms that are semantically equivalent. In (e), those edges have been oriented with a reduction order. Given the specification $\forall (l \rewrites r) \in R \st l =_e \wedge l > r$, we can find a TRS $R$ by picking a finite subset of all the directed edges in (e).}
+    \centering
+\subfigure[$\termlang$]{\includegraphics[width=0.3\textwidth]{figures/diagram1.png}}
+    \hspace{1em}
+    \subfigure[$\{s | s \in \termlang \wedge \phi(s)\}$ in red]{\includegraphics[width=0.3\textwidth]{figures/diagram2.png}}
+    \hspace{1em}
+    \subfigure[$\goallang$ in blue]{\includegraphics[width=0.3\textwidth]{figures/diagram3.png}} \\
+    \subfigure[Undirected edges connect all $s, t$ st. $s =_e t$]{\includegraphics[width=0.3\textwidth]{figures/diagram4.png}}
+    \hspace{1em}
+    \subfigure[Directed edges connect all $s, t$ st. $s =_e t \wedge s > t$]{\includegraphics[width=0.3\textwidth]{figures/diagram5.png}}
+    \caption{Each dot in (a) represents a term in $\termlang$. In (b), each term in the goal state is drawn in red. In (c), all terms which are equivalent to a term in the goal state ($\goallang$) are drawn in blue. The goal of the term rewriting system is to rewrite all blue dots in (c) to a red dot in (b). In (d), undirected edges connect all pairs of terms that are semantically equivalent. In (e), those edges have been oriented with a reduction order. Given the specification $\forall (l \rewrites r) \in R \st l =_e \wedge l > r$, we can find a TRS $R$ by picking a finite subset of all the directed edges in (e).}
     \label{fig:termuniverse}
 \end{figure}
 
@@ -825,7 +823,7 @@ Since any term rewriting system we wish to synthesize will be semantics-preservi
 We can effectively formalize the goal of a term rewriting system by choosing a \emph{goal order} over terms such that, for two terms $s$ and $t$ such that $s \goalorder t$ in this order, $t$ is assumed to be closer to the goal state.
 \end{assumption}
 
-Finding a goal order that encodes progress towards a goal state is a difficult task, and requires human intuition and ingenuity. Our work does not directly aid in this task, which is still up to the human author of the term rewriting system; however, our proposed synthesizer machinery can aid in experimenting with and selecting goal orders, as will be discussed in section~\ref{sec:proposedexperiments}.
+Finding a goal order that encodes progress towards a goal state is a difficult task, and requires human intuition and ingenuity. Our work does not directly aid in this task, which is still up to the human author of the term rewriting system; however, our synthesizer machinery can aid in experimenting with and selecting goal orders.
 
 \begin{table}[]
     \centering

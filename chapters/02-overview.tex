@@ -9,8 +9,8 @@ We define term rewriting systems and give some background. We then discuss the u
 
 
 The Halide compiler contains a term rewriting system composed of over a thousand
-rules, operating over the space of Halide expressions\footnote{See Supplemental Material for
-the full Halide expression grammar}. The language of Halide expressions
+rules, operating over the space of Halide expressions (see appendex~\ref{a:grammar} for
+the full Halide expression grammar). The language of Halide expressions
 operates over vectors and scalars of integers, booleans, and real values.  However, in
 this work we concentrate on the TRS as it applies to integer and boolean values, for
 both vectors and scalars, because the most important uses of the TRS within the compiler
@@ -150,7 +150,7 @@ The rules for simplifying to perform cancellations and
   performance. When we disabled all but the constant-folding rules to
   measure the importance of the simplifier, it was the absence of
   these specific rules that caused the (26.4$\times$) slow-down
-  mentioned in Section~\ref{sec:introduction}. Without these rules,
+  mentioned in Section~\ref{sec:intro}. Without these rules,
   Halide is useless for high-performance image
   processing.
 
@@ -205,7 +205,7 @@ robust and able to generate fast code.
 
 \subsection{The Variable Solver}
 
-The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \circ e$, where $v$ is the target variable, $\circ \in \{=, \neq, >, \geq, <, \leq\}$, and $e$ is a term that does not contain the target variable $v$.
+The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \circ e$, where $v$ is the target variable, $\circ$ is some binary operator, and $e$ is a term that does not contain the target variable $v$.
 
 $\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about 50 rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
 
@@ -215,7 +215,7 @@ We say that a term $t$ is in \emph{solved form} if it is in the form:
 \begin{enumerate}
   \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$)
   \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$) 
-  \item $t = x^t \odot t'$, where $\odot$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
+  \item $t = x^t \circ t'$, where $\circ$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
 \end{enumerate}
 
 \subsubsection{TrimNoOps}

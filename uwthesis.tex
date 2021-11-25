@@ -47,8 +47,8 @@
 %
 % The following line would print the thesis in a postscript font 
 
-% \usepackage{natbib}
-% \def\bibpreamble{\protect\addcontentsline{toc}{chapter}{Bibliography}}
+\usepackage{natbib}
+\def\bibpreamble{\protect\addcontentsline{toc}{chapter}{Bibliography}}
 
 \setcounter{tocdepth}{1}  % Print the chapter and sections to the toc
 
@@ -65,7 +65,8 @@
 \usepackage{makecell}
 \usepackage[ruled,vlined]{algorithm2e}
 \usepackage{hhline}
-\usepackage{float}
+\usepackage{subfigure}
+
 \usetikzlibrary{hobby,arrows,backgrounds,calc,trees,automata}
 
 \pgfdeclarelayer{background}
@@ -298,7 +299,8 @@
 \include{chapters/A1-grammar}
 \include{chapters/A2-sreductionorder}
 
-
-%\bibliography{uwthesis}
+\bibliographystyle{plainnat}
+\setcitestyle{square}
+\bibliography{uwthesis}
 
 \end{document}

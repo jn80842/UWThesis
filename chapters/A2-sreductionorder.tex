@@ -75,11 +75,11 @@ s >_{lpo} t
 The order $>_{lpo}$ is a lexicographic path order induced by an order defined over the Halide operations. We further refine the Halide operations by distinguishing addition, multiplication, select, min, and max where both arguments must not be ground terms from their counterparts whose arguments may be a ground term. We also separate subtraction where the left operand is the constant 0 from substractions where the left operand cannot be the constant 0.
 
 \begin{itemize}
-  \item add by constant <
-  \item multiply by constant <
-  \item \{subtract from 0, select from constant \} < 
-  \item max with constant <
-  \item \{min with constant, max, min, add, mul, subtract \} <
+  \item add by constant $<$
+  \item multiply by constant $<$
+  \item \{subtract from 0, select from constant \} $<$ 
+  \item max with constant $<$
+  \item \{min with constant, max, min, add, mul, subtract \} $<$
   \item all other operators
 \end{itemize}
 
