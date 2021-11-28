@@ -208,7 +208,7 @@ Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term 
 We say that a term $t$ is in \emph{solved form} if it is in the form:
 \begin{enumerate}
   \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$)
-  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$) 
+  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$). Terms in this form are only considered `solved' if no term $u$ in the above exists such that such that $t =_e u$. 
   \item $t = x^t \circ t'$, where $\circ$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
 \end{enumerate}
 
