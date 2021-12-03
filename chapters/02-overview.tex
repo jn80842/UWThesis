@@ -1,4 +1,4 @@
-\chapter{Overview}
+\chapter{Background}
 \label{chapter:overview}
 
 We define term rewriting systems and give some background. We then discuss the use of term rewriting systems in the Halide compiler and describe the two main such systems, the \emph{simplifier} and the \emph{variable solver}. We describe the rewriting algorithm used by the Halide compiler and discuss the requirements that led to its design choices. 
@@ -12,57 +12,6 @@ apply to these types.  In this section, we give some background on term rewritin
 We then describe how the Halide compiler uses term rewriting systems as reasoning engines
 and the design decisions that motivate the custom rewriting engine, as well as the scope
 of our work.
-
-
-%\modified{When the Halide language compiles an image processing pipeline, its compiler must issue a 
-%variety of queries over the pipeline's properties. For example, it may attempt to prove a 
-%loop extent can be reduced to a constant, allowing the loop to be fully unrolled; it may 
-%check properties as part of dependency analysis to show that two loops contain no hazards 
-%and can be parallelized; or it may try to prove that certain optimizations can be safely 
-%performed, such as lowering code to cheaper instructions. The solver that addresses these 
-%queries is so vital to the compiler that removing it results in 5.1$\times$ increase in compilation 
-%times and 26.4$\times$ increase in runtimes for even simple benchmarks. }
-
-This simplifier must balance three key criteria:
-
-\begin{itemize}
-  \item \textbf{Completeness:}
-It must work in 
-the theory of integers, which is undecidable, and make use of operations such as 
-Euclidean division and maximum/minimum which can be especially difficult for 
-automated reasoning. Although any solver in this theory is necessarily incomplete, but in general, 
-the compiler can generate higher-performing code as the simplifier becomes more powerful.
-  \item \textbf{High performance:} However, the simplifier is called many thousands of 
-times over the course of a single compilation, and so requires high performance and low memory usage.
-  \item \textbf{Determinism:} The compiler must always return the same 
-result for the same program, regardless of what platform runs the compiler, 
-so the simplifier must be deterministic. This is a hard requirement.
-\end{itemize}
-
-%\modified{Determinism is a hard requirement for the design of the
-%  simplifier, which rules out techniques with unbounded runtimes that
-%  rely on timeouts.  Given that constraint, the Halide simplifier must
-%  address as many of the compiler's queries as possible while
-%  maintaining high performance.}
-
-Halide addresses this problem with a \emph{term rewriting system}. Using a custom algorithm 
-that greedily applies rules in a fixed order and keeps only the expression being currently 
-rewritten as state, the term rewriting system (TRS) provides the performance and determinism 
-that the compiler requires. This algorithm scales well in terms of the number of rules
-in the TRS, so Halide developers continue to improve and increase its
-power by refining the ruleset and adding new rules by hand.
-
-However, maintaining a TRS by hand presents significant challenges. Rules are 
-carefully inspected and fuzz-tested, but are not formally proven sound. The 
-rule application algorithm itself is not guaranteed to terminate, so changing, adding, or 
-reordering rules may result in cycles on untested inputs. Debugging the system can be 
-difficult, since it is not clear which rule or combination of rules is responsible for 
-undesired behavior. The TRS is not complete enough to address all compiler queries 
-(for example, it may fail to compute tight bounds on intermediate arrays, leading to over-allocations).
-Finally, although the overarching goal of the TRS is to simplify 
-expressions, ``simplify'' is an imprecise notion. If developers are not familiar with 
-the entire ruleset, or the full variety of applications of the simplifier, they may inadvertently 
-add a rule that makes the simplifier worse for some of its usecases.
 
 \section{Term Rewriting Systems}
 
@@ -95,130 +44,7 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 
 \section{Term rewriting systems in the Halide compiler}
 
-\subsection{The Simplifier}
-\label{sec:uses-of-trs}
 
-To compile an image processing pipeline written in the
-  Halide language, the compiler must perform a variety of analyses of
-  the pipeline's properties. For example, if the user marks a
-  loop to be fully unrolled, the compiler must infer a constant upper
-  bound for the extent of the loop. If the user marks
-  a loop as parallel, the compiler must prove the absence of data
-  races. These analyses also affect performance more than in most
-  compilers. In Halide, the compiler infers loop bounds and allocation sizes.
-  If these are overestimated, the generated code may
-  perform an amount of wasted work sufficient to alter the
-  computational complexity of the algorithm. These analyses all depend
-  critically on the quality of Halide's expression simplifier. In
-  fact, Halide relies so heavily on its simplifier that restricting it
-  to mere constant-folding causes a geomean 5.1$\times$ increase in
-  compilation times and a 26.4$\times$ increase in runtimes across
-  Halide's benchmark suite.  
-
-While the Halide compiler makes use of the TRS in numerous ways, the most important
-  applications of the TRS are its uses as a fast simplifier and as a proof engine.  
-  In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
-  which are easier for the compiler to reason about, and result in less code being generated for
-  LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
-  into constants or expressions that are monotonic with respect to loop bounds; these simplifications are core to Halide's
-  ability to generate drastically different loop nests for different schedules.
-
-For example, consider the simple two-stage imaging pipeline $g(x) = f(x - 1) + f(x) + f(x + 1)$.
-  Halide enables programmers to fuse the computation of $f$ into $g$ at an arbitrary granularity
-  using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
-  about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
-  arithmetic over symbolic values for the size of a tile of $g$.  For a tile size of 8, a tile of $g$
-  is the region \texttt{[g.tile\_min, g.tile\_min+7]};  the region of $f$ required is
-  \texttt{[g.tile\_min-1, g.tile\_min+8]}; and the number of values of $f$ to compute is then
-  \texttt{g.tile\_min + 8 + 1 - (g.tile\_min - 1)}.  If the TRS can determine this is a static value
-  of 10, the Halide compiler can then safely perform transformations requested by the user.  In this
-  case, the compiler can use stack memory instead of inserting a dynamic allocation; or the loop can be
-  completely unrolled; the loop can be vectorized; or $f$ can be mapped to GPU threads (since a single
-  threadblock must have a compile-time-known size).  More generally, this kind of region analysis
-  operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
-  arithmetic can result in vast overestimates of required regions.  These simplifications are essential
-  for the compiler to work, and are usually not as simple as this example.
-
-The rules for simplifying to perform cancellations and
-  ensure monotonicity are incredibly important for compiler
-  performance. When we disabled all but the constant-folding rules to
-  measure the importance of the simplifier, it was the absence of
-  these specific rules that caused the (26.4$\times$) slow-down
-  mentioned in Section~\ref{sec:intro}. Without these rules,
-  Halide is useless for high-performance image
-  processing.
-
-%% Fodder from synthesis section:
-%% For example, Halide relies on symbolic interval arithmetic to determine how much memory
-%% to allocate and how many values to compute for each stage.  Symbolic interval arithmetic
-%% is exact when an expression monotonically increases or decreases over a loop.}
-%% For example, if $x \in [0, 100]$, then symbolic interval arithmetic states that
-%% $\hmax(x, x/2 + 20) \in [20, 100]$, which is the tightest correct
-%% bound; this bound is obtained by substituting in the lower and upper bounds of $x$
-%% into the expression. However, in the presence of anti-correlated subexpressions
-%% interval arithmetic becomes inexact, and is prone to overestimating
-%% bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
-%% symbolic interval arithmetic makes the weaker claim that it is bounded
-%% above by 100, by setting the first instance of $x$ to 100 and the
-%% second instance of $x$ to zero.
-
-The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
-  correctness of specific transformations or the relationships between bounds of
-  different loops or producer-consumer relationships.  In such cases, the compiler constructs
-  an expression that must be true or false in order to guarantee correctness, then applies
-  the TRS to see if the expression simplifies to a single boolean value.
-
-For example, Halide uses Euclidean division, which rounds according to the sign of the
-  denominator.  Lowering this to code requires emitting several instructions, which can be
-  slower than native division.  When the compiler can statically prove the signs of the numerator
-  and denominator, in some cases the code can be replaced by native division or even a different
-  instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
-  will try to prove $0 < \hmax(y, 1)$.  The TRS first invokes a rule to transform this to
-  $0 < y\; ||\; 0 < 1$, which then is transformed to true (since the second clause is always true).
-  Thus, the compiler is able to replace Euclidean division with machine division.
-
-TRS failures have adverse results on the compiler, making it unpredictable and
-  difficult for programmers to use.  When the TRS fails to properly simplify an expression or
-  prove a property, the consequences include: 
-\begin{itemize}
-\item Insufficiently tight bounds on loops and allocations, which may result in
-  runtime failures (e.g. due to memory overallocation) or performance issues;
-
-\item Failure of the compiler to apply optimizations, also resulting in slow performance;
-
-\item Dynamic checks in the generated code for properties that could have been proven
-  at compile time, leading to slower code;
-
-\item Compilation failures, when the compiler is unable to correctly produce code
-  even though the properties required hold, or when the proof engine itself crashes
-  or loops infinitely.
-\end{itemize}
-
-Thus, correctness and generality of the TRS are essential to make the compiler
-robust and able to generate fast code.
-
-\subsection{The Variable Solver}
-
-The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \circ e$, where $v$ is the target variable, $\circ$ is some binary operator, and $e$ is a term that does not contain the target variable $v$.
-
-$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about a hundred rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
-
-Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term $t$. We use the special variable $x^t$ to stand for the target variable, or the variable that the TRS is 'solving' for.
-
-We say that a term $t$ is in \emph{solved form} if it is in the form:
-\begin{enumerate}
-  \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$)
-  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$). Terms in this form are only considered `solved' if no term $u$ in the above exists such that such that $t =_e u$. 
-  \item $t = x^t \circ t'$, where $\circ$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
-\end{enumerate}
-
-Some uses of the variable solver in the Halide compiler include:
-
-\begin{itemize}
-	\item \textbf{Trimming no-ops} The variable solver is used in analyzing the conditions under which work is performed within nested for-loops. For example, imagine that the body of an inner for-loop over some variable $x$ only performs an operation when the condition of some if-statement is true. If the compiler can show that this condition will only hold for a limited range of the values for $x$, then it can skip the regions where only a no-op will be performed by truncating the loop. Isolating $x$ as much as possible is helpful in performing this analysis.
-	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
-	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
-\end{itemize}
 
 %\subsubsection{TrimNoOps}
 %
@@ -366,23 +192,21 @@ Some uses of the variable solver in the Halide compiler include:
 \label{fig:algoexample}
 \end{figure*}
 
-\subsection{Why a Custom Algorithm?}
-\label{sec:whycustom}
+\subsection{The Halide rewriting algorithm}
+\label{sec:customalgo}
 
 In a term rewriting system, a single rule may be able to match an input expression in 
 multiple ways, and there may be multiple rules in the ruleset which could be used 
 to rewrite the expression. A term rewriting algorithm might choose one of many alternatives 
 and later backtrack if it turns out not to be fruitful; it might make use of 
 heuristics to choose a next step; it might exercise all the alternatives and keep 
-the results in equivalence classes, as in an egraph. The Halide term rewriting algorithm
+the results in equivalence classes, as in an e-graph. The Halide term rewriting algorithm
 keeps only one expression in state and applies rules greedily, in a fixed priority.
 This is very fast and requires very little memory; the tradeoff is that the algorithm 
 may pick the ``wrong'' rule and have no way of undoing that decision. 
 Since the rewriter is invoked thousands of times with each call of the compiler, 
 it chooses to sacrifice some solving power in exchange for performance.
 
-\subsubsection{Halide's Custom TRS Algorithm}
-\label{sec:customalgo}
 The Halide term rewriting algorithm simplifies an input expression in a
 depth-first, bottom-up traversal of the expression DAG. At each node, it 
 uses the root node to pick a list of rules, then
@@ -425,6 +249,7 @@ expressions having a quasi-canonical form.
 \subsubsection{Why Not Z3?}
 \begin{table}
 \caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output. Note that expressions in the ``not proven'' column include expressions that are true but not found to be so by the solvers as well as expressions that are not true. }
+\centering
 \begin{tabular}{l|r|r|r}
 Tool & Runtime & Proven expressions & Not proven \\
 \hline
@@ -532,6 +357,129 @@ These improvements require overcoming challenging obstacles.  First,
   rely on traditional automated techniques to discover new rules.
 %\sak{Should we say something about how this applies to things other than Halide?}
 
+\subsection{The Simplifier}
+\label{sec:uses-of-trs}
 
+To compile an image processing pipeline written in the
+  Halide language, the compiler must perform a variety of analyses of
+  the pipeline's properties. For example, if the user marks a
+  loop to be fully unrolled, the compiler must infer a constant upper
+  bound for the extent of the loop. If the user marks
+  a loop as parallel, the compiler must prove the absence of data
+  races. These analyses also affect performance more than in most
+  compilers. In Halide, the compiler infers loop bounds and allocation sizes.
+  If these are overestimated, the generated code may
+  perform an amount of wasted work sufficient to alter the
+  computational complexity of the algorithm. These analyses all depend
+  critically on the quality of Halide's expression simplifier. In
+  fact, Halide relies so heavily on its simplifier that restricting it
+  to mere constant-folding causes a geomean 5.1$\times$ increase in
+  compilation times and a 26.4$\times$ increase in runtimes across
+  Halide's benchmark suite.  
+
+While the Halide compiler makes use of the TRS in numerous ways, the most important
+  applications of the TRS are its uses as a fast simplifier and as a proof engine.  
+  In many parts of the compiler, the TRS is used to rewrite expressions into simpler forms,
+  which are easier for the compiler to reason about, and result in less code being generated for
+  LLVM to consume at the backend.  Most importantly, the compiler uses the TRS to simplify expressions
+  into constants or expressions that are monotonic with respect to loop bounds; these simplifications are core to Halide's
+  ability to generate drastically different loop nests for different schedules.
+
+For example, consider the simple two-stage imaging pipeline $g(x) = f(x - 1) + f(x) + f(x + 1)$.
+  Halide enables programmers to fuse the computation of $f$ into $g$ at an arbitrary granularity
+  using the \texttt{compute\_at} scheduling directive.  This requires Halide to automatically reason
+  about which region of $f$ is required for a specific sub-region (or tile) of $g$, using interval
+  arithmetic over symbolic values for the size of a tile of $g$.  For a tile size of 8, a tile of $g$
+  is the region \texttt{[g.tile\_min, g.tile\_min+7]};  the region of $f$ required is
+  \texttt{[g.tile\_min-1, g.tile\_min+8]}; and the number of values of $f$ to compute is then
+  \texttt{g.tile\_min + 8 + 1 - (g.tile\_min - 1)}.  If the TRS can determine this is a static value
+  of 10, the Halide compiler can then safely perform transformations requested by the user.  In this
+  case, the compiler can use stack memory instead of inserting a dynamic allocation; or the loop can be
+  completely unrolled; the loop can be vectorized; or $f$ can be mapped to GPU threads (since a single
+  threadblock must have a compile-time-known size).  More generally, this kind of region analysis
+  operates most effectively when the expressions are monotonic in the loop bounds; otherwise, interval
+  arithmetic can result in vast overestimates of required regions.  These simplifications are essential
+  for the compiler to work, and are usually not as simple as this example.
+
+The rules for simplifying to perform cancellations and
+  ensure monotonicity are incredibly important for compiler
+  performance. When we disabled all but the constant-folding rules to
+  measure the importance of the simplifier, it was the absence of
+  these specific rules that caused the (26.4$\times$) slow-down
+  mentioned in Section~\ref{sec:intro}. Without these rules,
+  Halide is useless for high-performance image
+  processing.
+
+%% Fodder from synthesis section:
+%% For example, Halide relies on symbolic interval arithmetic to determine how much memory
+%% to allocate and how many values to compute for each stage.  Symbolic interval arithmetic
+%% is exact when an expression monotonically increases or decreases over a loop.}
+%% For example, if $x \in [0, 100]$, then symbolic interval arithmetic states that
+%% $\hmax(x, x/2 + 20) \in [20, 100]$, which is the tightest correct
+%% bound; this bound is obtained by substituting in the lower and upper bounds of $x$
+%% into the expression. However, in the presence of anti-correlated subexpressions
+%% interval arithmetic becomes inexact, and is prone to overestimating
+%% bounds. The expression $\hmin(x, 100 - x)$ when $x \in [0, 100]$ is bounded above by 50, but
+%% symbolic interval arithmetic makes the weaker claim that it is bounded
+%% above by 100, by setting the first instance of $x$ to 100 and the
+%% second instance of $x$ to zero.
+
+The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
+  correctness of specific transformations or the relationships between bounds of
+  different loops or producer-consumer relationships.  In such cases, the compiler constructs
+  an expression that must be true or false in order to guarantee correctness, then applies
+  the TRS to see if the expression simplifies to a single boolean value.
+
+For example, Halide uses Euclidean division, which rounds according to the sign of the
+  denominator.  Lowering this to code requires emitting several instructions, which can be
+  slower than native division.  When the compiler can statically prove the signs of the numerator
+  and denominator, in some cases the code can be replaced by native division or even a different
+  instruction altogether.  For example, for an expression \texttt{x / max(y, 1)} the compiler
+  will try to prove $0 < \hmax(y, 1)$.  The TRS first invokes a rule to transform this to
+  $0 < y\; ||\; 0 < 1$, which then is transformed to true (since the second clause is always true).
+  Thus, the compiler is able to replace Euclidean division with machine division.
+
+TRS failures have adverse results on the compiler, making it unpredictable and
+  difficult for programmers to use.  When the TRS fails to properly simplify an expression or
+  prove a property, the consequences include: 
+\begin{itemize}
+\item Insufficiently tight bounds on loops and allocations, which may result in
+  runtime failures (e.g. due to memory overallocation) or performance issues;
+
+\item Failure of the compiler to apply optimizations, also resulting in slow performance;
+
+\item Dynamic checks in the generated code for properties that could have been proven
+  at compile time, leading to slower code;
+
+\item Compilation failures, when the compiler is unable to correctly produce code
+  even though the properties required hold, or when the proof engine itself crashes
+  or loops infinitely.
+\end{itemize}
+
+Thus, correctness and generality of the TRS are essential to make the compiler
+robust and able to generate fast code.
+
+\subsection{The Variable Solver}
+
+The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \odot e$, where $v$ is the target variable, $\odot$ is some binary operator, and $e$ is a term that does not contain the target variable $v$.
+
+$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about a hundred rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
+
+Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term $t$. We use the special variable $x^t$ to stand for the target variable, or the variable that the TRS is 'solving' for.
+
+We say that a term $t$ is in \emph{solved form} if it is in the form:
+\begin{enumerate}
+  \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$). If we took the term $(x^t - x^t) + y$ and rewrote it to $y$, $y$ would be in solved form, as it does not contain any instances of $x^t$.
+  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$). If we took the term $x^t + (y * (z - z))$ and rewrote it to $x^t$, $x^t$ would then be in solved form, as it consists of the target variable alone.
+  \item $t = x^t \odot t'$, where $\odot$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered `solved' if no term $u$ in either of the above two forms exist such that $t =_e u$. If we took the term $(y + x^t) + z$ and rewrote it to $x^t + (y + z)$, it would then be in solved form. (Note that $x^t + (z + y)$ would also in solved form.) However, $x^t + (y - y)$ would not be in solved form, since a semantically equivalent term $x^t$ is in the second form.
+\end{enumerate}
+
+Some uses of the variable solver in the Halide compiler include:
+
+\begin{itemize}
+	\item \textbf{Trimming no-ops} The variable solver is used in analyzing the conditions under which work is performed within nested for-loops. For example, imagine that the body of an inner for-loop over some variable $x$ only performs an operation when the condition of some if-statement is true. If the compiler can show that this condition will only hold for a limited range of the values for $x$, then it can skip the regions where only a no-op will be performed by truncating the loop. Isolating $x$ as much as possible is helpful in performing this analysis.
+	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
+	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
+\end{itemize}
 
 

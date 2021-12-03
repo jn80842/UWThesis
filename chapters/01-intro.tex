@@ -1,11 +1,56 @@
 \chapter{Introduction}
 \label{sec:intro}
 
-Term rewriting systems are a useful tool in the construction of compilers. They are a succinct and efficient way of executing program reasoning tasks, and can give extremely fast performance. 
+To compile an image processing pipeline written in the
+  Halide language, the compiler must perform a variety of analyses of
+  the pipeline's properties. For example, if the user marks a
+  loop to be fully unrolled, the compiler must infer a constant upper
+  bound for the extent of the loop. If the user marks
+  a loop as parallel, the compiler must prove the absence of data
+  races. These analyses also affect performance more than in most
+  compilers. In Halide, the compiler infers loop bounds and allocation sizes.
+  If these are overestimated, the generated code may
+  perform an amount of wasted work sufficient to alter the
+  computational complexity of the algorithm. The reasoning engines that make these judgments within the Halide compiler are crucial to exploiting opportunities for these optimizations.
+  In fact, Halide relies so heavily on one of these engines that restricting it
+  to mere constant-folding causes a geomean 5.1$\times$ increase in
+  compilation times and a 26.4$\times$ increase in runtimes across
+  Halide's benchmark suite.
 
-However, term rewriting systems can be challenging both to develop and to maintain. As the path of execution for inputs can vary greatly, it can be difficult for developers to reason about how the various rules in the system interact as a whole. Adding, altering, or deleting a rule can have unforeseen consequences. Even if a TRS contains unsound rules, it may give correct results on all but a few inputs, and when the error is detected it can be difficult to track down which rules is responsible. A slight change to the ruleset can make it possible for rules form cycles, causing the system to fail to terminate on some inputs. 
+\modified{Such a reasoning engine must balance three key criteria:}
 
-The task of authoring these systems is even more challenging when the language of input expressions is in an undecidable theory. Since a term rewriting system in such a language cannot be complete, it is hard to know if a given system is optimal or if some change would improve its performance, degrade it, or perhaps make no difference at all.
+\begin{itemize}
+  \item \modified{\textbf{Completeness:}
+It must work in 
+the theory of integers, which is undecidable, and make use of operations such as 
+Euclidean division and maximum/minimum which can be especially difficult for 
+automated reasoning. Any solver in this theory is necessarily incomplete, but in general, 
+the compiler can generate higher-performing code as the reasoning engine becomes more powerful.}
+  \item \modified{\textbf{High performance:} However, the engine is called many thousands of 
+times over the course of a single compilation, and so requires high performance and low memory usage. }
+  \item \modified{\textbf{Determinism:} The compiler must always return the same 
+result for the same program, regardless of what platform runs the compiler, 
+so the engine must be deterministic.}
+\end{itemize}
+
+Halide addresses these reasoning tasks with \emph{term rewriting systems}. Using a custom algorithm 
+that greedily applies rules in a fixed order and keeps only the expression being currently 
+rewritten as state, a term rewriting system (TRS) can provide the performance and determinism 
+that the compiler requires. This algorithm scales well in terms of the number of rules
+in the TRS, so Halide developers continue to improve and increase the reasoning engines'
+power by refining the ruleset and adding new rules by hand.
+
+However, maintaining a TRS by hand presents significant challenges. Rules are 
+carefully inspected and fuzz-tested, but are not formally proven sound. The 
+rule application algorithm itself is not guaranteed to terminate, so changing, adding, or 
+reordering rules may result in cycles on untested inputs. Debugging the system can be 
+difficult, since it is not clear which rule or combination of rules is responsible for 
+undesired behavior. The TRS is not complete enough to address all compiler queries 
+(for example, it may fail to compute tight bounds on intermediate arrays, leading to over-allocations).
+Finally, the precise goal of a reasoning engine, or the strategy it uses to achieve that goal,
+may be recorded only in the form of the rewrite rules themselves. If developers are not familiar with 
+an entire ruleset, or the full variety of applications in which the ruleset is invoked, they may inadvertently 
+add a rule that makes the simplifier worse for some of its usecases.
 
 In this work, we propose to show how authoring and maintaining term rewriting systems can be made easier through the use of formal methods and program synthesis. We will demonstrate how these techniques can support all degrees of human involvement: from verifying and strengthening existing term rewriting systems, to bootstrapping term rewriting systems from a specification and a set of seed axioms, to synthesizing a new ruleset entirely from scratch.
 
@@ -71,8 +116,6 @@ and well-tuned for our suite of benchmarks, we show some performance
 gains without increases in compilation time when our newly synthesized suite 
 of rules is added to the TRS. 
 
- 
-
 \section{Synthesizing a new term rewriting system}
 \label{intro:varsolver}
 
@@ -82,5 +125,8 @@ An idealized version of our proposed synthesis procedure is laid out in algorith
 
 The key input to the synthesis procedure is the reduction order over terms, which serves as a specification for the synthesis of rules. The reduction order is a means of formalizing either the intent of the term rewriting system\textemdash the form into which the TRS should rewrite expressions\textemdash or the strategy by which the TRS will rewrite expressions to be closer to the desired form. While TRS authors are likely to have good intuition as to what rewriting strategy their system should employ, choosing the best reduction order for the task is still not a trivial exercise. Our synthesis process gives users the chance to experiment and determine which reduction order serves their purpose best; rather than hand-turning rules, they can synthesize a ruleset entirely from scratch for a given reduction order and evaluate it directly.
 
-We use the Halide variable solver as a case study to demonstrate how synthesis can be used to evaluate reduction order specifications. We lay out the refined synthesis algorithm, with some discussion of how best to search the space of candidate rules, and show how reduction orders can be encoded efficiently as metasketches. We evaluate our claims by synthesizing two rulesets from two different reduction orders in a fully automated way and evaluate their performance against the existing handwritten solver on a suite of benchmarks.
+We have used the Halide variable solver as a case study to demonstrate how synthesis can be used to evaluate reduction order specifications. We lay out the refined synthesis algorithm, with some discussion of how best to search the space of candidate rules, and show how reduction orders can be encoded efficiently as metasketches. We evaluate our claims by synthesizing two rulesets from two different reduction orders in a fully automated way and evaluate their performance against the existing handwritten solver on a suite of benchmarks.
 
+\section{Outline of work}
+
+In this dissertation, we first lay out some necessary background in chapter~\ref{chapter:overview}: we give a formal definition of term rewriting systems and related concepts, describe the two TRSs within the Halide compiler that will serve as our case studies, and provide some discussion of the rationale behind some of the Halide rewriting algorithm design choices. In chapter~\ref{sec:verification}, we detail our work proving the correctness of the Halide simplifier, showing that the TRS is both semantics-preserving and guaranteed to terminate. Next, in chapter~\ref{chapter:synthesis}, we show how we were able to increase the robustness of the simplifier TRS by using a key artifact from our termination proof, a reduction order, as a specification to synthesize new rewrite rules. We demonstrate that our synthesis process can produce high-quality bug fixes, discuss some ways in which our techniques have been used to support Halide developers' work, and perform a large-scale experiment synthesizing an additional 4,000 new rules, with the effect of reducing peak memory usage of benchmark programs with no increase in compilation times. In chapter~\ref{chapter:synthfromscratch}, we synthesize a ruleset for the Halide variable solver entirely from scratch, using our method of specifying rulesets through reduction orders. We discuss the efficient encoding of reduction order specifications using sketches, and furthermore show that our synthesis pipeline gives users an automatic tool for empirically evaluating alternative specifications without ever having to manually write rules. Finally, in chapter~\ref{chapter:conclusion}, we conclude with some directions for future work.
