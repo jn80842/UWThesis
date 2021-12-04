@@ -295,6 +295,35 @@ We could thus think of rules that obeyed the `solved form' orders as rules that 
 
 \section{The synthesis algorithm}
 
+Our synthesis algorithm takes as inputs 
+
+\begin{itemize}
+\item A goal function $\phi$, which returns true when applied to a term in the goal state and false otherwise. 
+\item A semantic equivalence relation $=_e$ over terms. A concrete implementation of this relation is required to be sound, but it will almost certainly be incomplete (unless working in a decidable theory).
+\item A reduction order $>$, which encodes a desired strategy of moving terms in the direction of the goal state.
+\item A set of training expressions $E$, which will be used to choose candidate left-hand sides for new rules. These expressions should be likely inputs to the TRS when it is used for its desired task.
+\item A set of test expressions $S$, which will be used to determine if the synthesized TRS is powerful enough, or if we should continue learning new rules.
+\end{itemize}
+
+An idealized version of the algorithm is presented in Algorithm~\ref{algo:synthesis}. We initialize with an empty ruleset $R$. While there is some expression in our test set $S$ that $R$ cannot rewrite to satisfy the goal function $\phi$, we will attempt to learn a new rule. We choose an expression from our training set $E$, and from that expression choose a pattern that could match with it to serve as a candidate left-hand side. We query the synthesizer for a right-hand side that is semantically equivalent to the LHS and is ordered less than the LHS in our reduction order. If we cannot find such a RHS, we choose another candidate LHS and continue. When we do find a RHS that satisfies our specification, we have learned a new rule. We add this new rule to the end of the ruleset $R$. We then use the updated ruleset to rewrite every training expression in $E$, discarding any expressions that can satisfy $\phi$ after being rewritten (since the newly updated TRS is capable of rewriting those expressions to the goal state, we do not need to learn any more rules from these expressions). The remaining expressions in the updated set $E$ have been rewritten as far in the direction of the goal state as the new ruleset is capable of. If the test set condition is not yet met, we want to learn rules that will bring these expressions even further toward the goal state, so we choose a candidate LHS on our next iteration from this newly normalized set.
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
+\KwResult{a term rewriting system $R$}
+\While{$\exists s \in S \st \neg \phi(R(s))$}{
+    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
+        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
+    \If{$r$ is found}{
+        $R \gets  R \bigcup \;\{(l \rewrites r)\}$\;
+        $E \gets \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
+    }
+}
+\caption{Idealized procedure for synthesizing a term rewriting system}
+\label{algo:synthesis}
+\end{algorithm}
+
+(implementation of synthesis pipeline outlined here, full section TK)
 
 Implemented in Rosette. How Rosette works. Chosen for quick development of pipeline and to take advantage of symbolic evaluation/some built-in simplification. Wrote an interpreter for the Halide expression language in Rosette. In order to handle the disparity between Halide/C++ semantics and Racket semantics, had to add some lightweight typing to prevent integer-valued expressions being used as boolean. Also div/mod issues (depending on if we fix this or just skip it).
 
@@ -311,23 +340,6 @@ From the chosen subterm, find all patterns that could match it. On the rationale
 Now we have a candidate left-hand side expression. We attempt to form a rule by synthesizing a matching right-hand side. Using Rosette's synthesis construct, we write a query stating for all variables, the candidate LHS should be semantically equivalent to the synthesized RHS. This satisfies the requirement that a rewrite rule should be semantics-preserving.
 
 We also need to fulfill our specification expressed as a reduction order. Rather than express this requirement as an assertion that the synthesized solution must satisfy, we instead use the reduction order to constrain the search space available to the solver by encoding the order as a sketch. Talk about sketches and metasketches.
-
-
-\begin{algorithm}[H]
-\SetAlgoLined
-\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
-\KwResult{a term rewriting system $R$}
-\While{$\exists s \in S \st \neg \phi(s)$}{
-    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
-        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
-    \If{$r$ is found}{
-        $R \gets  R \bigcup \;\{(l \rewrites r)\}$\;
-        $E \gets \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
-    }
-}
-\caption{Idealized procedure for synthesizing a term rewriting system}
-\label{algo:synthesis}
-\end{algorithm}
 
 \subsection{The fully solved order as sketches}
 
