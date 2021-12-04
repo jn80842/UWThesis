@@ -111,7 +111,8 @@
 % ==========   Local defs and mods
 \definecolor{uwpurple}{RGB}{128,0,128}
 \definecolor{darkgreen}{RGB}{0,64,0}
-\newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
+%\newcommand{\jln}[1]{\textcolor{uwpurple}{\textit{[{#1} --JLN]}}}
+\newcommand{\jln}[1]{\textcolor{uwpurple}{}}
 \newcommand{\sak}[1]{\textcolor{olive}{\textit{[{#1} --SK]}}}
 \newcommand{\aba}[1]{\textcolor{darkgreen}{\textit{[{#1} --AA]}}}
 \newcommand{\rb}[1]{\textcolor{blue}{\textit{[{#1} --RB]}}}
@@ -190,7 +191,7 @@
 %
 % ----- copyright and title pages
 %
-\Title{a dissertation}
+\Title{Augmenting and Synthesizing Term Rewriting Systems}
 \Author{Julie L. Newcomb}
 \Year{2021}
 \Program{Computer Science and Engineering}
@@ -240,14 +241,14 @@
   %% slowing down the compiler.
   We demonstrate that the synthesizer can produce better rules than hand-authored ones in five bug fixes, and describe four cases in which it has served as an assistant to a human compiler engineer. We further show that it can proactively improve weaknesses in the compiler by synthesizing a large number of rules without human supervision and showing that the enhanced ruleset lowers peak memory usage of compiled code without appreciably increasing compilation times.
 
-  %%% this is from oopsla paper, add later work abstract
+  We then turn from the goal of improving a handwritten term rewriting system to synthesizing an entirely new one. We argue that an artifact from a TRS termination proof, a special type of order over terms known as a reduction order, is an effective and expressive means of writing a specification for a term rewriting system. We demonstrate its own on a case study of another component of the Halide compiler called the variable solver. We present a synthesis process that takes a specification written in the form of a reduction order and a set of sample input expressions and produces a new ruleset. Furthermore, we show that we can use this synthesis process to allow users to experiment with different specifications by automatically generating new TRSs and evaluating them empirically, without ever handing to write a rule by hand.
 }
  
 %
 % ----- contents & etc.
 %
 \tableofcontents
-\listoffigures
+%\listoffigures
 %\listoftables  % I have no tables
  
 %
@@ -256,16 +257,16 @@
 %
 % ----- acknowledgments
 %
-\acknowledgments{% \vskip2pc
+%\acknowledgments{% \vskip2pc
   % {\narrower\noindent
-  -
+%  -
   % \par}
-}
+%}
 
 %
 % ----- dedication
 %
-\dedication{\begin{center}-\end{center}}
+%\dedication{\begin{center}-\end{center}}
 
 %
 % end of the preliminary pages
@@ -293,7 +294,7 @@
 \include{chapters/A2-sreductionorder}
 
 \bibliographystyle{plainnat}
-\setcitestyle{square}
+%\setcitestyle{square}
 \bibliography{uwthesis}
 
 \end{document}

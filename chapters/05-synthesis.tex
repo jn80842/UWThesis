@@ -1,10 +1,9 @@
-\chapter{Synthesis}
+\chapter{Augmenting a Term Rewriting System through Synthesis}
 \label{chapter:synthesis}
 
 \section{Increasing Completeness: Synthesizing Rewrite Rules}
 \label{sec:completeness}
-%\jln{Possible TODO: I refer to expressions from the corpus we learn from as input expressions throughout. If anyone has a 
-%better suggestion please let me know.}
+
 \begin{figure*}
 %\includegraphics[width=1.\columnwidth,natwidth=610,natheight=642]{figures/synthesis-flow.pdf}
 %\includegraphics[width=1.\columnwidth]{figures/synthesis-flow.pdf}
@@ -234,14 +233,14 @@ variants of existing rules is far cheaper. About three-quarters of our synthesiz
 
 \subsubsection{Finding Right-Hand Sides through CEGIS}
 \label{sec:rhssynthesis}
-If the first method fails, we apply counterexample guided inductive synthesis (CEGIS)~\cite{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
-In superoptimization~\cite{massalin1987superoptimizer}, we take a program and search 
+If the first method fails, we apply counterexample guided inductive synthesis (CEGIS)~\citep{DBLP:conf/aplas/Solar-Lezama09} to superoptimize the left-hand side pattern.
+In superoptimization~\citep{massalin1987superoptimizer}, we take a program and search 
 for an equivalent program within some grammar that is preferable according 
 to some cost function. Here our grammar is that of the Halide expression language, 
 the method for testing program equivalence is the Z3 solver, and we use the node
 count of the programs as a proxy for our full reduction order.
 
-Similar to prior work in superoptimization~\cite{regehr2018superoptimization, mangpo2016superoptimization},
+Similar to prior work in superoptimization~\citep{regehr2018superoptimization, mangpo2016superoptimization},
 we search the expression space for an equivalent RHS using a CEGIS loop. This loop alternately calls Z3 as a
 verifier, which checks if a candidate RHS is equivalent to the LHS on all inputs, 
 and a learner, which finds a candidate RHS that is equivalent to the LHS on
@@ -265,10 +264,10 @@ operations, we use it together with our LHS to form a candidate rule.
   %this bytecode
   %sequence serves as an SSA representation of an expression tree. The
   %interpreter is evaluated abstractly on symbolic inputs to produce a
-  %sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}, 
+  %sketch~\citep{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}, 
   %capable of acting as any Halide expression in our
   %search space depending on the bytecode values. The learner uses Z3
-  by creating a sketch~\cite{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}
+  by creating a sketch~\citep{DBLP:conf/aplas/Solar-Lezama09, torlak2014lightweight}
   that consists of a small bytecode interpreter that encodes the possible
   operations and operands the RHS can use, along with a bound on the number of instructions.
   The learner uses Z3 to query for a sequence of bytecodes within the bound, that, when
@@ -289,7 +288,7 @@ operations, we use it together with our LHS to form a candidate rule.
   complication. 
 
 While Z3 is a powerful tool for synthesis, there are certain types of expressions 
-containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\cite{jovanovic2017solving} and MathSAT5~\cite{mathsat5}, but were not able to obtain appreciably better results.)
+containing division or modulo that Z3 nearly always fails to reason about during the CEGIS process. (We experimented with the SMT solvers Yices2~\citep{jovanovic2017solving} and MathSAT5~\citep{mathsat5}, but were not able to obtain appreciably better results.)
 Z3 is better able to reason about expressions containing concrete constants, rather than
 universally quantified variables, so we synthesize rules using candidate LHSs with 
 concrete constants from the input expression and generalize them later.
@@ -472,9 +471,6 @@ In evaluating the benefits of the verifier and synthesizer, we answer the follow
 
 We discuss these findings in more detail below, grouping them into three sections. First we examine bug reports from Halide’s past and evaluate whether the machinery presented in this paper could have fixed them automatically. Second, we examine cases where beta versions of our verifier and synthesizer assisted humans both in fixing bugs and in correctly making larger changes to the compiler. Third, we fuzz the compiler to mine for issues that could be fixed with new simplifier rules, and automatically fix them before they ever appear as a bug in a real program. In this way we demonstrate that this machinery would have been useful in the past, is useful in the present, and will help avoid entire classes of bugs in the future.
 
-%\jln{don't forget to do this!}
-%Note for reviewers: For the purposes of this anonymous submission, we will refer to code changes by letter, with corresponding diffs found in supplemental material. In this final version of the paper these will be replaced with GitHub issue and pull request IDs with links to Halide’s GitHub page.
-
 \subsection{Comparing the Synthesizer to Human-Authored Rules}
 
 \subsubsection{Does the Synthesizer Produce Better Rules than a Human Expert?}
@@ -606,7 +602,7 @@ Generalizing from these four cases, we have found that having the verifier and s
 
 Although we now have a guarantee of soundness, we have no such guarantee of completeness. There are almost certainly Halide compilations for which the addition of some desirable rule would strengthen the TRS enough to unlock some optimization or achieve a tighter bound on some region. However, we don’t know what they are because no human has encountered them yet (or more likely, no human has been sufficiently motivated to submit a bug report for them yet). 
 
-We attempted to probe for such opportunities for improvement using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\cite{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations. We also instrumented most of the Halide code at Google for an additional 5032 compilations, this time using the original human-written schedules. Note that this is qualitatively different to randomly-generated schedules: we do not expect Halide users at Google would check in code that behaves poorly due to an issue with the compiler.
+We attempted to probe for such opportunities for improvement using fuzzing. We selected the 12 most complex example applications in the open source repository, and generated 64 random schedules for each using the autoscheduler~\citep{Adams2019}, which can be configured to generate random likely-good schedules. This produced 768 separate compilations. We also instrumented most of the Halide code at Google for an additional 5032 compilations, this time using the original human-written schedules. Note that this is qualitatively different to randomly-generated schedules: we do not expect Halide users at Google would check in code that behaves poorly due to an issue with the compiler.
 
 We instrumented these compilations to log expressions that might represent a TRS failure of some kind. From each compilation we log all integer expressions found that are non-monotonic with respect to a containing loop, and all failed proof attempts made during compilation. That is, we log all boolean expressions passed to the TRS in the hope that they will reduce to the constant true so that some optimization can correctly be performed. This resulted in a corpus of roughly one hundred thousand unique expressions.
 
@@ -666,7 +662,7 @@ These results show that having verification and synthesis available as a tool fo
 
 \section{Limitations \& Future Work}
 \label{sec:limitations}
-\jln{copied over from OOPSLA paper; should keep some discussion of limitations but not sure if future work belongs here}
+
 For this work, we considered only the subset of the term rewriting system that
 is used to prove properties over infinite integers; the full TRS includes rules
 for simplifying expressions with floating point values as well as rules for
@@ -682,23 +678,4 @@ the overall synthesis machinery cannot generalize these to non-constants.
 Extending the synthesizer may be more tractable for rules that operate
 on integers with finite bitwidths.
 
-The Halide TRS is used both to prove expressions true or false and to
-simplify expressions to more easily optimizable forms, but these two use cases
-are not always aligned. One could imagine two separate rewriters with
-different rulesets and reduction orders. One interesting direction for future
-work might be to use the synthesizer to create these two rulesets, which would
-otherwise be a very human-effort intensive task.
-
-Although we do not currently synthesize rules that contain vector operators,
-they are not incompatible with our approach. Since our reduction of Halide
-expressions to SMT2 formulas models vector expressions as integers, we would need
-to add a typechecking step to ensure correctness in the synthesis process, which
-we leave as future work.
-
-The priority in which rules are considered for matching clearly can have
-performance implications, but evaluation and tuning is left as future work, and
-may require modifying our ordering or creating different orderings for different
-uses of the term rewriting system.
-
-Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
 

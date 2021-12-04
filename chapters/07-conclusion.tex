@@ -1,4 +1,26 @@
-\chapter{Conclusion}
+\chapter{Conclusion and Future Work}
 \label{chapter:conclusion}
 
 We claim in this work that formal methods and program synthesis can be used to assist compiler authors in creating and maintaining these term rewriting systems. In prior work, we have shown how these techniques can aid in the maintenance of existing term rewriting systems by providing proofs of correctness and termination, and by synthesizing rewrite rules that strengthen a system's reasoning power. In proposed work, we plan to show how our techniques can greatly improve smaller or immature term rewriting systems or even create them from scratch. We have demonstrated the former claim in a case study on the Halide simplifier term rewriting system, and have presented a plan to investigate the latter claim on the variable solver, a much less mature term rewriting system in the Halide compiler.
+
+The Halide TRS is used both to prove expressions true or false and to
+simplify expressions to more easily optimizable forms, but these two use cases
+are not always aligned. One could imagine two separate rewriters with
+different rulesets and reduction orders. One interesting direction for future
+work might be to use the synthesizer to create these two rulesets, which would
+otherwise be a very human-effort intensive task.
+
+Although we do not currently synthesize rules that contain vector operators,
+they are not incompatible with our approach. Since our reduction of Halide
+expressions to SMT2 formulas models vector expressions as integers, we would need
+to add a typechecking step to ensure correctness in the synthesis process, which
+we leave as future work.
+
+The priority in which rules are considered for matching clearly can have
+performance implications, but evaluation and tuning is left as future work, and
+may require modifying our ordering or creating different orderings for different
+uses of the term rewriting system.
+
+Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
+
+Additional future work TK

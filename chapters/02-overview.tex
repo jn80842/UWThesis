@@ -15,8 +15,8 @@ of our work.
 
 \section{Term Rewriting Systems}
 
-Term rewriting systems~\cite{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
-used in theorem proving~\cite{baader1999term} and abstract interpretation~\cite{cousot1977abstract, cousot1979systematic}.
+Term rewriting systems~\citep{gorn1967} are sets of \textit{rewrite rules} used to transform expressions into a new form.  Such systems are widely
+used in theorem proving~\citep{baader1999term} and abstract interpretation~\citep{cousot1977abstract, cousot1979systematic}.
 
 Terms are defined inductively over a set of variables $V$ and a set of function symbols $\Sigma$. Every variable $v \in V$ is a term, and for any function symbol $f \in \Sigma$ with arity $n$ and any terms $t_1, ..., t_n$, the application of the symbol to the terms $f(t_1, ..., t_n)$ is also a term. (Constants are considered zero-arity functions.) We refer to the set of terms constructed from the variables $V$ and the function symbols $\Sigma$ as $T(\Sigma, V)$.
 
@@ -260,7 +260,7 @@ Halide TRS & 2s & 885 & 3419
 \end{table}
 
 
-Given that we make use of the Z3 solver~\cite{de2008z3} for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver~\citep{de2008z3} for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
 As discussed above, the Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
@@ -283,7 +283,7 @@ further progress on these ``stuck'' expressions. This goal seems similar to that
 for a set of identities. We do not use completion directly, although
 our synthesis algorithm could be considered analogous to completion in some ways.
 
-In the standard Knuth-Bendix completion algorithm~\cite{knuth1983simple}, we take a
+In the standard Knuth-Bendix completion algorithm~\citep{knuth1983simple}, we take a
 finite set of identities $E$ and a reduction order $>$ on terms as inputs; if successful, the
 algorithm will return a finite, convergent set of rules $R$ that is equivalent to 
 $E$. The algorithm may also fail, or fail to terminate. At each step the algorithm
