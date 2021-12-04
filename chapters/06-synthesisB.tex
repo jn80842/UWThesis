@@ -1,26 +1,13 @@
-\section{Synthesizing a variable solver}
+\chapter{Synthesizing a variable solver}
+\label{chapter:synthfromscratch}
 
-\begin{algorithm}[H]
-\SetAlgoLined
-\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
-\KwResult{a term rewriting system $R$}
-\While{$\exists s \in S \st \neg \phi(s)$}{
-    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
-        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
-    \If{$r$ is found}{
-        $R \gets  R \bigcup \;\{(l \rewrites r)\}$\;
-        $E \gets \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
-    }
-}
-\caption{Idealized procedure for synthesizing a term rewriting system}
-\label{algo:synthesis}
-\end{algorithm}
+In the simplifier work, we devised a reduction order to prove that the simplifier ruleset was guaranteed to terminate, and then made use of that order in synthesizing new rules for that ruleset. In a way, we could consider this an extended instance of programming by demonstration---we received around a thousand example programs, manually derived a specification that described all of those examples, and then used it to synthesize new programs. The natural question to ask is whether a user might simply write the specification and synthesize their desired TRS without seeding it with any handwritten rules at all.
 
-Having demonstrated that we can synthesize rules to augment an existing, handwritten term rewriting system, it is natural to next synthesize a term rewriting system entirely from scratch. By back-fitting a reduction order to conform with the existing simplifier rules, we essentially derived a specification from an existing implementation (one could consider this an example of programming by demonstration, albeit one with a very large number of example programs). We define some possible reduction orders that represent strategies or gradients along which to rewrite expressions to bring them closer to the desired solved form with regard to the specified variable. We then evaluate these orders by synthesizing entirely new term rewriting systems using the orders as specifications and evaluating their performance on a suite of benchmarks.
+In this chapter, we argue that the reduction order is a useful and powerful way of writing specifications for term rewriting systems. We demonstrate this using the Halide variable solver term rewriting system as a case study. First we will discuss the rationale behind using reduction orders as specifications and the design of our synthesis pipeline. We define some possible reduction orders that represent strategies or gradients along which to rewrite expressions to bring them closer to the desired solved form with regard to the specified variable. We then evaluate these orders by synthesizing entirely new term rewriting systems using the orders as specifications and evaluating their performance on a suite of benchmarks.
 
 \subsection{Rationale for synthesis pipeline}
 
-Here we lay out the rationale for our proposed synthesis pipeline. In particular, we will discuss three key assumptions: that a reduction order can be an effective heuristic for guiding term rewrites to a desired form; that a term rewriting system can be synthesized as a series of individual rules; and that choosing candidate left-hand sides gathered from realistic inputs is an efficient means of finding rules that will have high impact on the performance of the term rewriting system.
+Here we lay out the rationale for our proposed synthesis pipeline. In particular, we will discuss three key assumptions: that a reduction order can be an effective heuristic for guiding term rewrites to a desired form; that a term rewriting system can be synthesized incrementally rule by rule; and that choosing candidate left-hand sides gathered from realistic inputs is an efficient means of finding rules that will have high impact on the performance of the term rewriting system.
 
 When we specify a term rewriting system in this work, we say that it must have three properties:
 
@@ -30,7 +17,9 @@ When we specify a term rewriting system in this work, we say that it must have t
     \item it must rewrite terms into a form that has some desired property
 \end{itemize}
 
-In prior work, we showed that the Halide simplifier was semantics-preserving by verifying that for each rule $(l \rewrites r) \in R$, $l =_e r$, where the equality relation $=_e$ was checked by running the terms $l, r$ through an interpreter and sending the outputs to a solver to be checked. We showed that the TRS was terminating by choosing an order $>$ over terms and showing that every rule in $R$ rewrote terms to be strictly less in that order. When we synthesized new rules to add to the simplifier ruleset, we did not explicitly define the third criterion, but allowed the termination order fitted to the existing ruleset to guide the synthesis pipeline. 
+The first two properties are required. As our language is undecidable, we can't create a TRS that is able to rewrite \emph{all} terms into the desired form. Our incremental synthesis pipeline is thus designed to grow the ruleset rule by rule, such that with each successful iteration of the synthesis algorithm, the ruleset is able to move more terms further toward the desired form.
+
+In chapter~\ref{chapter:synthesis}, we showed that the Halide simplifier was semantics-preserving by verifying that for each rule $(l \rewrites r) \in R$, $l =_e r$, where the equality relation $=_e$ was checked via an SMT solver. We showed that the TRS was terminating by choosing an order $>$ over terms and showing that every rule in $R$ rewrote terms to be strictly less in that order. When we synthesized new rules to add to the simplifier ruleset, we did not explicitly define the third criterion, but allowed the termination order fitted to the existing ruleset to guide the synthesis pipeline. 
 
 In this section, we will define more precisely the goal or intent behind a term rewriting system. We argue that an effective means of specifying this intent for the purpose of synthesis is to use a reduction order to capture the notion of rewriting a term to be closer to some goal state.
 
@@ -48,24 +37,28 @@ In this section, we will define more precisely the goal or intent behind a term 
     \label{fig:termuniverse}
 \end{figure}
 
-First, we define the goal property that describes the underlying intention of the term rewriting system. Assume some language of terms $\termlang$, a semantic equivalence relation over those terms $=_e$, and a syntactic equivalence relation $=$. We write the goal property as a predicate function $\phi$ such that $\phi(s)$ is true if $s$ is in the goal state and false otherwise. We can thus write the domain of the term rewriting system as a language $\goallang \subseteq \termlang$, defined as
+First, we define the goal property that describes the underlying intention of the term rewriting system. Assume some language of terms $\termlang$ and a semantic equivalence relation over those terms $=_e$ (as opposed to a syntactic equivalence relation, which we will write $=$). We write the goal property as a predicate function $\phi$ such that $\phi(s)$ is true if $s$ is in the goal state and false otherwise. 
+
+We can thus write the domain of the term rewriting system as a language $\goallang \subseteq \termlang$, defined as
 
 \[
 \goallang = \{s | s \in \termlang \wedge (\exists t \in \termlang\;.\; s =_e t \wedge \phi(t))\}
 \]
 
-We want our term rewriting system to put every term in $\goallang$ into a form that satisfies our goal function $\phi$. It doesn't matter what the term rewriting system does to terms which are in $\termlang$ but not $\goallang$ so long as it obeys the semantics-preserving and termination properties.\footnote{We might prefer that the term rewriting system act on terms not in $\goallang$ as little as possible, but this is purely for performance reasons and can be set aside for now.}
+We want our term rewriting system to put every term in $\goallang$ into a form that satisfies our goal function $\phi$. When we specify how a term rewriting system rewrites terms into a goal state, we refer only to terms in $\goallang$; when the TRS rewrites a term that in is $\termlang$ but not in $\goallang$, it need only obey the semantics-preserving and termination properties.\footnote{We might prefer that the term rewriting system act on terms not in $\goallang$ as little as possible, but this is purely for performance reasons and can be set aside for now.}
 
-As two running examples, let us consider two term rewriting systems that represent different aspects of the Halide simplifier TRS. As in the rest of this work, we assume that $\termlang$ is the Halide expression grammar. First, we consider a prover TRS, which tries to determine if an expression is equivalent to the booleans values true or false, or if its truth value is unknown. We state that the prover has a domain language $\goallang_P$ and a goal state function $\phi_P$ such that
+To illustrate these definitions, we will develop formal specifications for two example term rewriting systems that represent different aspects of the Halide simplifier TRS. As discussed in section~\ref{sec:uses-of-trs}, the simplifier is used in many places in the Halide compiler under a number of difference circumstances, perhaps explaining the extremely complex reduction order we devised to fit its ruleset. Here, we will isolate two of the simplifier's important function: showing that a term must always evaluate to true, and showing that a term is strictly increasing or strictly decreasing.
+
+ As in the rest of this work, we assume that $\termlang$ is the Halide expression grammar. First, we consider a prover TRS, which tries to determine if an expression is equivalent to the booleans values true or false, or if its truth value is unknown. We state that the prover has a domain language $\goallang_P$, which contains all terms in the Halide expression language that are equivalent ($=_e$) to $\htrue$ or $\hfalse$, and a goal state function $\phi_P$ that returns true if its input syntactically equivalent ($=$) to $\htrue$ or $\hfalse$ and false otherwise. This goal function encodes the purpose of the TRS, which is to transform all terms that are semantically equivalent to true or false to the boolean constants $\htrue$ or $\hfalse$. (Again, the goal function says nothing about terms in the Halide language, e.g. $x < y$, that are not provably true or provably false.)
 
 \begin{align*}
-    \goallang_P = \{s | s \in \termlang \wedge (s =_e \htrue \vee s =_e \hfalse)\} \\
     \phi_P(s) := s = \htrue \vee s = \hfalse
+    \goallang_P = \{s | s \in \termlang \wedge (s =_e \htrue \vee s =_e \hfalse)\} \\
 \end{align*}
 
-The second example is a TRS that seeks to show that a given expression is monotonic. The goal function for this TRS is a bit more subtle. The Halide compiler's means of querying the monotonicity of an expression is sound but not complete: it walks the expression to see if it is in a syntactic form that can be recognized as monotonically increasing, monotonically decreasing, or constant. If it cannot recognize the expression as any of these three, it returns unknown. The job of the monotonic rewriter TRS is to put expressions into this syntactic form wherever possible. We say then that the domain language of the monotonic rewriter $\goallang_M$ is all terms $s$ in $\termlang$ where there exists some term $t$ such that $s =_e t$ and $t$ is in a syntactic form that can be recognized as monotonic or constant by the function $\texttt{is_monotonic}$ in the Halide codebase. The goal state function $\phi_M$ returns false when $\texttt{is_monotonic}$ returns unknown on an input term, and true otherwise.
+The second example is a TRS that seeks to show that a given expression is monotonic. The goal function for this TRS is a bit more subtle. The Halide compiler's means of querying the monotonicity of an expression is sound but not complete: it walks the expression to see if it is in a syntactic form that can be recognized as monotonically increasing, monotonically decreasing, or constant. If it cannot recognize the expression as any of these three, it returns unknown. The job of the monotonic rewriter TRS is to put expressions into this syntactic form wherever possible. We say then that the domain language of the monotonic rewriter $\goallang_M$ is all terms $s$ in $\termlang$ where there exists some term $t$ such that $s =_e t$ and $t$ is in a syntactic form that can be recognized as monotonic or constant by the function $\texttt{is_monotonic}$ in the Halide codebase. The goal state function $\phi_M$ returns false when $\texttt{is_monotonic}$ returns unknown on an input term, and true otherwise. (Again, $\phi_M$ may return false for a term that is not in monotonic form because it is not in $\goallang_M$, i.e. no semantically equivalent monotonic form exists, but we can disregard this case for now.)
 
-We write $R(s)$ for the output of a term rewriting system $R$ on the input term $s$. Assume we use the means of assuring semantics preservation and termination as used above. Then, for an equivalence relation $=_e$ and a goal function $\phi$, we write that a specification for an ideal TRS $R$ thus:
+With these definitions in hand, we are now ready to formally specify the three properties we require of a term rewriting system (semantics-preserving, terminating, and rewrites terms into a desired form). We write $R(s)$ for the output of a term rewriting system $R$ on the input term $s$. Assume we use the means of assuring semantics preservation and termination as used above. Then, for an equivalence relation $=_e$ and a goal function $\phi$, we write that a specification for an ideal TRS $R$ thus:
 
 \begin{align*}
 \forall s \in \goallang \st \phi(R(s)) \wedge \\
@@ -198,11 +191,20 @@ The intuition behind the order is simple, but we will have to take care in our d
 
 To transform a term into a string (we write this function as $\texttt{varstr}(s)$), we first take the sequence of all occurrences of variables and constants in the term, in the order in which they occur. We truncate the sequence by removing everything after the last occurrence of a target-matching variable. We then replace all target-matching variables with 'a' and all non-target-matching variables or constants with 'b', and compare the resulting string with that of another term in lexicographic order (such that a $<$ b).
 
-\begin{tabular}{llll}
+\begin{tabular}{l|l|l|l}
+\centering
 $n_0 + t_0 > t_0 + n_0$ & $(n_0 t_0) > (t_0 n_0)$ & $(n_0 t_0) > (t_0)$ & ab $>$ a \\
 \end{tabular}
 
-This order is clearly compatible with $\Sigma$-operations; if $\texttt{varstr}(s_1) > \texttt{varstr}(s_2)$, then the order will still hold if identical prefixes and suffixes are added to both terms. However, we need to add an additional condition to make the order closed under substitution. Consider a rule
+This order is clearly compatible with $\Sigma$-operations; if $\texttt{varstr}(s_1) > \texttt{varstr}(s_2)$, then the order will still hold if identical prefixes and suffixes are added to both terms. 
+
+\begin{align*}
+s_1 > s_2 \implies & f(t_1,s_1,t_n) > f(t_1,s_2,t_n) \\
+\texttt{varstr}(s_1) > \texttt{varstr}(s_2) \implies & \texttt{varstr}(t_1) + \texttt{varstr}(s_1) + \texttt{varstr}(t_n) > \\
+&\texttt{varstr}(t_1) + \texttt{varstr}(s_2) + \texttt{varstr}(t_n)
+\end{align*}
+
+However, we need to add an additional condition to make the order closed under substitution. Consider a rule
 
 \[ (n_0 + n_1) + (t_0 + n_2) \rewrites (n_2 + t_0) + (n_0 + n_1)
 \]
@@ -211,28 +213,19 @@ The rule appears to move the target-matching variable to the left and thus seems
 \[ (y^n + z^n) + (x^t + ((u^n + v^n) + w^n)) \rewrites (((u^n + v^n) + w^n) + x^t) + (y^n + z^n)
 \]
 
-which actually shifts the target-matching variable to the right.
+which actually shifts the target-matching variable to the right. The problem occurs because the non target-matching variables have been reordered from the LHS term to the RHS. A similar issue arises if we reorder the target-matching variables:
 
-To disallow this ordering, we add the condition that a rewrite rule that follows this order cannot permute the sequence of target-matching variables or the sequence of non-target-matching variables; it can only change how the two sequences are interleaved. In the example above, the sequence of target-matching variables is unchanged between the two terms, but the sequence of non-target-matching variables has been reordered.
+\begin{align*}
+(t_0 + n_0) + t_1 \rewrites & (t_1 + t_0) + n_0 \\
+\sigma = \{ t_0 \mapsto x^t, n_0 \mapsto y^n, t_1 \mapsto ((z^n + w^n) + x^t)\} \\
+(x^t + y^n) + ((z^n + w^n) + x^t) \rewrites & (((z^n + w^n) + x^t) + x^t) + y^n
+\end{align*}
 
-\begin{tabular}{ccccccccc}
-      &       & $t_0$ &       & $\rewrites$ &       & $t_0$ &       & \\
-$n_0$ & $n_1$ &       & $n_2$ &             & $n_2$ &       & $n_0$ & $n_1$
-\end{tabular}
-
-Similar issue if we are allowed to reorder target-matching variables
-
-\[ (t_0 + n_0) + t_1 \rewrites (t_1 + t_0) + n_0
-\]
-
-\[ \sigma = \{ t_0 \mapsto x^t, n_0 \mapsto y^n, t_1 \mapsto ((z^n + w^n) + x^t)\}
-\]
-
-\jln{finish proof and write formal definition of order}
+To disallow this ordering, we add the condition that a rewrite rule that follows this order cannot permute the sequence of target-matching variables or the sequence of non-target-matching variables; it can only change how the two sequences are interleaved. More precisely, if we take the sequence of target-matching variable instances from $s_1$ and $s_2$, we should be able to fix a mapping from each variable instance in $s_2$ to an instance of that same variable in $s_1$ such that, after deleting all variable instances in $s_1$ that are not mapped, the two sequences are identical. We must be able to do the same with the non variable-matching variables in both terms, after omitting all non target-matching variables that occur after the final instance of a target-matching variable in their respective terms. With these condition, there is no substitution that can introduce a non target-matching variable in the $s_2$ term without introducing at the same or earlier position in $s_1$, maintaining the order.
 
 \subsection{Move occurrences of target-matching variables up}
 
-Similar to the previous order, this order is an intuitive step in isolating the target variable to the left of a top-level binary operator. To define this order formally, we first define a function \texttt{bfs_hash} that takes a term and a variable, and returns a hash whose keys are the depths of the AST representation of that term and whose values are the number of instances of that variable that occur at those depths. We say that $\texttt{bfs_hash}(s_1, x) < bfs_hash(s_2, x)$ if $\texttt{bfs_hash}(s_1, x)[0] < bfs_hash(s_2, x)[0]$, or if $\texttt{bfs_hash}(s_1, x)[0] = bfs_hash(s_2, x)[0] \wedge \texttt{bfs_hash}(s_1, x)[1] < bfs_hash(s_2, x)[1]$, and so on.
+Similar to the previous order, this order is an intuitive step in isolating the target variable to the left of a top-level binary operator. To define this order formally, we first define a function \texttt{bfs_hash} that takes a term and a variable, and returns a hash whose keys are the depths of the AST representation of that term and whose values are the number of instances of that variable that occur at those depths. We say that $\texttt{bfs_hash}(s_1, x) < \texttt{bfs_hash}(s_2, x)$ if $\texttt{bfs_hash}(s_1, x)[0] < \texttt{bfs_hash}(s_2, x)[0]$, or if $\texttt{bfs_hash}(s_1, x)[0] = bfs_hash(s_2, x)[0] \wedge \texttt{bfs_hash}(s_1, x)[1] < \texttt{bfs_hash}(s_2, x)[1]$, and so on.
 
 We then say that $s_1 >_\uparrow s_2$ if, for every target-matching variable $x_t$ that occurs in $s_1$, there are an equal or greater number of occurrences of that variable in $s_1$ than in $s_2$, and $\texttt{bfs_hash}(s_1, x) \leq bfs_hash(s_2, x)$, and if there exists at least one target-matching variable whose \texttt{bfs_hash} value is strictly greater in $s_2$ than in $s_1$.
 
@@ -261,15 +254,15 @@ The orders described above describe a strategy for manipulating terms towards th
 
 \begin{enumerate}
   \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$).
-  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$). Terms in this form are only considered `solved' if no term $u$ in the above exists such that such that $t =_e u$.
-  \item $t = x^t \circ t'$, where $\circ$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
+  \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$).
+  \item $t = x^t \odot t'$, where $\odot$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered 'solved' if no term $u$ in either of the above two forms exist such that $t =_e u$.
 \end{enumerate}
 
 Reduction orders must be checkable syntactically, so we relax the requirement that the second form is only considered solved if no equivalent term in the first form exists and so on. Then, we can formalize these forms into orders such that terms that are solved are ordered less than terms that are not solved.
 
 \begin{enumerate}
-    \item $s_1 >_{f1} s_2 \iff \exists x_t \in \mathcal{V}(s_1) \wedge \neg \exists x_t \in \mathcal{V}(s_2)$
-    \item $s_1 >_{f2} s_2 \iff s_1 \neq x_t \wedge s_2 = x_t$ (modulo alpha renaming)
+    \item $s_1 >_{f1} s_2 \iff \exists x^t \in \mathcal{V}(s_1) \wedge \neg \exists x^t \in \mathcal{V}(s_2)$
+    \item $s_1 >_{f2} s_2 \iff \exists x^t \in \mathcal{V}(s_1) \wedge s_1 \neq x^t \wedge s_2 = x^t$
     \item $s_1 >_{f3} s_2 \iff s_1$ cannot match $f(t_0, n_0)$ for any $f \in \Sigma$, and $s_1$ can match $f(t_0, n_0)$ for some $f \in \Sigma$
 \end{enumerate}
 
@@ -302,17 +295,66 @@ We could thus think of rules that obeyed the `solved form' orders as rules that 
 
 \section{The synthesis algorithm}
 
-How the Rosette synthesis procedure works
 
-Strategy for prioritizing the search space: sorting input expressions by size, choice of LHS from a given input expression, choice of sketches
+Implemented in Rosette. How Rosette works. Chosen for quick development of pipeline and to take advantage of symbolic evaluation/some built-in simplification. Wrote an interpreter for the Halide expression language in Rosette. In order to handle the disparity between Halide/C++ semantics and Racket semantics, had to add some lightweight typing to prevent integer-valued expressions being used as boolean. Also div/mod issues (depending on if we fix this or just skip it).
 
-Encoding reduction orders as metasketches
+Built a term rewriting system algorithm with target-variable aware matching. Cite TRaAT ML code. Also reduction order checkers.
+
+In the variable solver synthesis pipeline, we begin with a set of likely inputs to the desired TRS. 
+
+Grow ruleset rule by rule. Every time we learn a rule, we add it to the end of the ruleset, normalize the input by the new rule, and continue.
+
+Choose an initial input expression. We iterate over subterms in the order that the rewriting algorithm would attempt to match them, bottom-up depth first search order. Basically we attempt to rewrite an expression the way a term rewriting system would, but appealing to a solver to find any solution it can rather than precalculated rules.
+
+From the chosen subterm, find all patterns that could match it. On the rationale that more general rules are more useful, we sort the resulting patterns by size and try the smallest first.
+
+Now we have a candidate left-hand side expression. We attempt to form a rule by synthesizing a matching right-hand side. Using Rosette's synthesis construct, we write a query stating for all variables, the candidate LHS should be semantically equivalent to the synthesized RHS. This satisfies the requirement that a rewrite rule should be semantics-preserving.
+
+We also need to fulfill our specification expressed as a reduction order. Rather than express this requirement as an assertion that the synthesized solution must satisfy, we instead use the reduction order to constrain the search space available to the solver by encoding the order as a sketch. Talk about sketches and metasketches.
+
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\KwIn{goal function $\phi$, semantic equivalence relation $=_e$, reduction order $>$, set of training expressions $E$, set of test expressions $S$}
+\KwResult{a term rewriting system $R$}
+\While{$\exists s \in S \st \neg \phi(s)$}{
+    choose $e \in E$, $l \in \texttt{lhs\_patterns(e)}$\;
+        query synthesizer for $r$ such that $l =_e r \wedge l > r$\;
+    \If{$r$ is found}{
+        $R \gets  R \bigcup \;\{(l \rewrites r)\}$\;
+        $E \gets \{ R(e) | e \in E \wedge \neg \phi(R(e))\}$\;
+    }
+}
+\caption{Idealized procedure for synthesizing a term rewriting system}
+\label{algo:synthesis}
+\end{algorithm}
+
+\subsection{The fully solved order as sketches}
+
+The fully solved order is a composition of three orders.
+
+\subsubsection{No target variables sketch}
+The only constraint on a sketch of this kind is that the synthesized solution does not contain any of the target variables. Write as register program, searching from instruction count 1 to instruction count k where k is the number of operators in the LHS expression.
+
+\subsubsection{Target variable alone sketch}
+Note that while the no target variable order is ahead of this order in the fully solved order composition, if a solution in this form exists, then there is no solution in the form of a term that does not contain any target variables, and vice versa. 
+
+For each unique target variable in the LHS expression, we attempt to verify that the LHS expression is semantically equivalent to that target variable. If we are successful, this forms a new rule.
+
+\subsubsection{Target variable op expression sketch}
+For each unique target variable, we ask the solver to choose some binary operator from the Halide expression language whose left operand is that target variable and whose right operand is an expression that does not contain any target variables. We synthesize this right operand using a register-style sketch as above, searching from instruction count 1 to instruction count k.
+
+\subsection{The gradual order as sketches}
+
+\subsubsection{Fewer target variables order sketch}
+
+\subsubsection{Move target variables left order sketch}
+
+\subsubsection{Move target variables up order sketch}
 
 \section{Evaluation of synthesized TRSs}
 
-Evaluate synthesized TRSs on set-aside input expressions, against performance of handwritten solver.
-
-Put into Halide compiler and see if any difference on compiled pipelines is observable.
+Evaluation TK
 
 
 \section{Related work}
