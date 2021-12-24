@@ -5,6 +5,43 @@ In the simplifier work, we devised a reduction order to prove that the simplifie
 
 In this chapter, we argue that the reduction order is a useful and powerful way of writing specifications for term rewriting systems. We demonstrate this using the Halide variable solver term rewriting system as a case study. First we will discuss the rationale behind using reduction orders as specifications and the design of our synthesis pipeline. We define some possible reduction orders that represent strategies or gradients along which to rewrite expressions to bring them closer to the desired solved form with regard to the specified variable. We then evaluate these orders by synthesizing entirely new term rewriting systems using the orders as specifications and evaluating their performance on a suite of benchmarks.
 
+\begin{figure}
+\begin{tikzpicture}[<->,auto,node distance=6cm]
+\tikzstyle{every state}=[draw=none]
+\node[state]    (A)     {$(y + x) - y$};
+\node[state]    (B) [below left of=A]    {$x + 0$};
+\node[state]    (C) [below right of=A]    {$x + (y \cdot (z - z))$};
+\node[state]    (D) [right of=A]    {$x \cdot (\frac{z}{z})$};
+\node[state]    (E) [above of=D]    {$x$};
+\node[state]    (F) [above left of=A]    {$\hmin(x, x \cdot 1)$};
+\node[state]    (G) [left of=A]    {$\frac{x \cdot 3}{3}$};
+
+\path (A)   edge    node {} (B)
+            edge    node {} (C)
+            edge    node {} (D)
+            edge    node {} (E)
+            edge    node {} (F)
+            edge    node {} (G)
+     (B)    edge [bend right]   node {} (C)
+            edge [bend right]   node {} (D)
+            edge [bend right]   node {} (E)
+            edge    node {} (F)
+            edge    node {} (G)
+    (C)     edge    node {} (D)
+            edge    node {} (E)
+            edge [bend right]   node {} (F)
+            edge    node {} (G)
+    (D)     edge [bend right]   node {} (E)
+            edge [bend right]   node {} (F)
+            edge [bend right]   node {} (G)
+    (E)     edge [bend right]   node {} (F)
+            edge [bend right]   node {} (G)
+    (F)     edge [bend right]   node {} (G);
+
+\end{tikzpicture}
+\end{figure}
+
+
 \subsection{Rationale for synthesis pipeline}
 
 Here we lay out the rationale for our proposed synthesis pipeline. In particular, we will discuss three key assumptions: that a reduction order can be an effective heuristic for guiding term rewrites to a desired form; that a term rewriting system can be synthesized incrementally rule by rule; and that choosing candidate left-hand sides gathered from realistic inputs is an efficient means of finding rules that will have high impact on the performance of the term rewriting system.
@@ -366,7 +403,106 @@ For each unique target variable, we ask the solver to choose some binary operato
 
 \section{Evaluation of synthesized TRSs}
 
-Evaluation TK
+To evaluate our synthesis process, we attempted to synthesize term rewriting systems that could make meaningful progress on a realistic set of benchmarks. We gathered a set of expressions by instrumenting calls to the existing Halide variable solver and running a suite of applications with randomly generated schedules. As our current synthesis pipeline does not support synthesis of rules guarded by predicates, there was no need to consider constant values, so we replaced all constants in the gathered expressions with fresh variable. After removing all duplicate expressions modulo alpha renaming, we had a set of 4218 expressions to serve as benchmarks. Note that not all of these benchmarks can be put into solved form, and since we lack a decision procedure for this undecidable problem, we do not know how many of the benchmarks can be solved.
+
+We chose 33 of those expressions as a training set. We chose these expressions randomly, excluding expressions that were so large as to cause performance issues during synthesis. Recall that the Halide rewriting algorithm attempts to rewrite each subterm of an expression, and that each subterm can be matched by many potential LHS patterns. Thus, the set of 33 expressions yielded about 500 candidate LHS expressions (depending on how successful the learned TRS is at rewriting expressions---if a rule is learned that can transform an input expression, the newly rewritten expression may yield more candidate patterns).
+
+We ran two synthesis experiments, taking as a specification the goal form order and the gradual order respectively. The goal form order task synthesized 21 rules, while the gradual order task synthesized 32. All of the rules in the goal form TRS were also present in the gradual TRS. Both the goal form and gradual TRS are able to solve 11 of the 33 training set expressions. 
+
+Of the 4218 benchmarks (including the 33 training set expressions), the goal form TRS was able to put 949 of them into solved form, while the gradual TRS was able to solve 966 of them; in other words, the goal form TRS performed fairly well and the gradual TRS performed slightly better. There were 18 expressions that the gradual TRS was able to solve that the goal form TRS was not. In all 18 cases, both TRSs applied the same sequence of rewrites up to a certain point, when the goal form TRS was unable to continue. The gradual TRS was able to further rewrite the expression with a rule that was not present in the goal form TRS, and from there was able to continuing rewriting the expression into a solved form.
+
+For example, consider this input expression~\footnote{The expression has been simplified by replacing subterms that have no bearing on the final result with fresh variables. For example, $\frac{y + c_0}{c_1} \cdot c_1$ has been replaced by $y$.}
+
+\[ \hmax{(((y + ((x + z) - w)) + c_1), (u + ((z + x) - w)))} + (w - (x + z))
+\]
+
+Both the goal form and gradual TRS rewrite it to
+
+\[ (x + \hmax{((((z - w) + y) + c_1), ((z - w) + u))}) + (w - (x + z))
+\]
+
+at which point no rules in the goal form TRS can be applied. However, the gradual TRS can apply the rule
+
+\[ t_0 + (n_1 - t_2) \rewrites t_0 - (t_2 - n_1)
+\]
+
+to produce the expression
+
+\[ ((x + max((((z - w) + y) + c_1), ((z - w) + u))) - ((x + z) - w))
+\]
+
+The gradual TRS can then apply further rewrites to cancel the target variable and arrive at an expression in solved form:
+
+\[ \hmax{((((z - w) + y) + c_1), ((z - w) + u))} - (z - w)
+\]
+
+Interestingly, in 15 of the 18 expressions that the gradual TRS was able to solve when the goal form TRS was not, the rule that unlocked the expression for the gradual TRS was actually one that obeyed the goal form order. Recall that when we synthesize rules from an input expression, we attempt to rewrite it just as we would with a concrete TRS, but rather than rewriting with existing rewrite rules we ask the solver if we can find a new rule that would allow us to make progress. On the input expression
+
+\[ (x \cdot c_0) + ((y + z) - (((\frac{(select(c_1 < x, c_2, c_1) + z) + y}{c_3} + (x \cdot c_3)) \cdot c_3)))
+\]
+
+Both tasks were able to normalize to the following form using rules they already knew
+
+\[ (x \cdot c_0) + ((y + z) - (((\frac{(select((x > c_1), c_2, c_1) + (z + y))}{c_3}) + (x \cdot c_3)) \cdot c_3))
+\]
+
+From there, the goal form order task was not able to learn any new rules. However, the gradual order task was able to apply one more rule to the expression, which moves a target variable to the left but does not put the term into fully solved form.
+
+\[ (n_0 + n_1) - t_2 \rewrites n_0 - (t_2 - n_1)
+\]
+
+The gradual order task was then able to learn two new rules from the resulting expression, including one in goal form order
+
+\[ (t_0 - n_1) - n_2 \rewrites t_0 - (n_2  + n_1)
+\]
+
+Although this rule obeys the goal form order, the goal form order task never encountered the input expression that would have matched its LHS, and so it never synthesized the rule.
+
+It is perhaps not surprising that a TRS is able to successfully rewrite more expressions than a TRS that is its strict subset. More surprising is the fact that the goal form TRS was able to solve one expression that the gradual TRS could not. On the benchmark expression~\footnote{Similarly simplified.}
+
+\[ (((y + z) - x) \cdot c_1 - w) + (x \cdot c_1 + u)
+\]
+
+the goal form TRS immediately applies a rule that cancels out the target variable.
+
+\begin{align*} 
+((((n_0 - t_1) \cdot n_2) - n_3) + ((t_1 \cdot n_2) + n_4)) & \rewrites ((n_4 - n_3) + (n_0 \cdot n_2)) \\
+(((y + z) - x) \cdot c_1 - w) + (x \cdot c_1 + u) & \rewrites ((u - w) + ((y + z) \cdot c_1))
+\end{align*}
+
+However the gradual TRS first applies a rule not in the goal form TRS
+
+\begin{align*}
+(n_0 + n_1) - t_2 & \rewrites n_0 - (t_2 - n_1) \\
+(((y + z) - x) \cdot c_1 - w) + (x \cdot c_1 + u) & \rewrites ((y - (x - z)) \cdot c_1) - w) + (x \cdot c_1 + u)
+\end{align*}
+
+Although the gradual TRS contains the rule the goal form TRS used to reach solved form, this additional rewrite means that the rule no longer applies, and the gradual TRS gets stuck. We will discuss this type of problem more fully in section~\ref{sec:completion}, but for now we will observe that adding new rules is not an unalloyed good.
+
+We also compared the performance of our synthesized TRSs against several other TRSs we constructed. First, we translated the `rules' in the C++ version of the variable solver currently in the Halide compiler into formal rewrite rules. We removed any rules that were guarded by predicates, as our synthesis process does not currently support rule predicates. We then filtered that ruleset by the two reduction orders for comparison. (In fact, when running the unfiltered ruleset on the benchmarks, it failed to terminate, from which we can conclude that there is no reduction order that can be made to fit the full original ruleset. The Halide compiler version terminates now because it does not recurse on every rewrite but in certain cases simply returns.)
+
+When the `original' ruleset was filtered by the gradual order, it consisted of 75 rules, more than twice the size of the synthesized gradual TRS. However it performed surprisingly poorly, solving only 106 benchmarks. However, it was able to solve 21 benchmarks that the synthesized gradual TRS was not.
+
+When verifying the rewrite rules in the simplifier, we had to prove some of them were sound using the proof assistant Coq. The Coq standard library contains a large set of integer axioms, and we wondered how powerful those axioms might be as a TRS. We chose the relevant integer axiom libraries, scraped them for axioms, and transformed those axioms into rewrite rules by considering each assignment of target-matching and non-target-matching status to the variables in each equality and retaining any equality that could be oriented using one of our two reduction orders. The resulting TRS using the gradual reduction order was quite large, 480 rules, but was only able to solve 792 benchmarks, 174 fewer than the synthesized ruleset. It was able to solve 107 benchmarks that the synthesized TRS could not, however. Filtering the Coq TRS by the goal form order resulted in a much smaller ruleset (148 rules) with very similar solving performance (787 solved benchmarks). 
+
+In an earlier synthesis experiment, we tried using smaller inputs for our training set. Our reasoning was that smaller inputs would quickly yield small, highly general rules, which would allow a TRS to be bootstrapped more quickly. We sorted the 4218 benchmarks by size and chose the smallest 400 expressions as a training set, synthesizing using the gradual reduction order as a specification. The resulting 38-rule TRS was able to solve only 492 of the full benchmark set; it was able to solve 66 expressions that the first synthesized gradual ruleset was not. Its training set contained patterns that the previous training set did not; for example, both TRSs learned the rule $n_0 \leq t_1 \rewrites t_1 \geq n_0$, but only the TRS trained on the shorter expressions learned the rule $n_0 \geq t_1 \rewrites t_1 \leq n_0$. For comparison's sake, we filtered the small-inputs synthesized TRS by the goal form order, resulting in a TRS of 29 rules. This was the only case in which the goal form order version of a TRS performed markedly worse than its gradual counterpart; it solved only 251 benchmarks and only 44 that the synthesized gradual TRS could not solve.
+
+Finally, observing that all of these TRSs solved at least one expression that the synthesized gradual TRS could not, we took the union of \emph{all} of the TRSs by simply concatenating all the rulesets into one. The resulting union TRS performed the best of all, solving 1124 benchmarks including 179 that the synthesized gradual TRS could not. Filtering the union TRS by the goal form order, however, resulted in even better performance with 1180 expressions solved. Much like the one expression that the synthesized goal form TRS could solve but the synthesized gradual TRS could not, clearly some of the rules in the union gradual TRS are preventing helpful rewrites from occurring. Again, we will further discuss this issue in~\ref{sec:completion}.\jln{TODO: union ruleset sizes are approximate because the same rule appears in multiple TRSs in the union; get the accurate counts.}
+
+\begin{tabular}{l|r|r|r}
+Name & $|R|$ & Solved exprs & Solved exprs not solved by Gradual \\
+\hline
+Synthesized Gradual & 32 & 966 & 0 \\
+Synthesized Goal form & 21 & 949 & 1 \\
+Original (gradual) & 75 & 106 & 21 \\
+Original (goal form) & 53 & 105 & 20 \\ 
+Coq axiom & 480 & 792 & 107 \\
+Coq axiom (goal form) & 148 & 787 & 103 \\
+Small inputs & 38 & 492 & 66 \\
+Small inputs (goal form) & 29 & 251 & 44 \\
+Union & ~625 & 1124 & 179 \\
+Union (goal form) & ~253 & 1180 & 218
+\end{tabular}
 
 
 \section{Related work}

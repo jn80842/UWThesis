@@ -482,4 +482,41 @@ Some uses of the variable solver in the Halide compiler include:
 	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
 \end{itemize}
 
+\begin{lstlisting}[language=C++]
+	Func F;
+	Var x, y;
+	f(x, y) = select(2 * x < y, 5, undef<int>());
 
+	Var xi, yi;
+	f.tile(x, y, xi, yi, 4, 4);
+\end{lstlisting}
+
+
+\begin{lstlisting}[language=C++]
+for(y=0; y < (y_extent+3)/4; y++) {
+	yi_base = min(y * 4, y_extent - 4);
+	for(x=0; x < (x_extent+3)/4; x++) {
+		xi_base = min(x * 4, x_extent - 4);
+		for(yi=0; yi<4; yi++) {
+			for(xi=0; xi<4; xi++) {
+				if (xi_base + xi)*2 < (yi_base + yi) {
+					f[idx] = 5;
+				}
+			}
+		}
+	}
+}
+\end{lstlisting}
+
+
+\begin{lstlisting}[language=C++]
+	(xi_base + xi) * 2 < (yi_base + yi)
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++]
+	xi <= ((yi_base + yi) - (xi_base* 2) - 1)/2
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++]
+	xi_new_max = ((yi_base + yi) - (xi_base* 2) - 1)/2
+\end{lstlisting}
