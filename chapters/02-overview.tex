@@ -444,16 +444,20 @@ We say that a term $t$ is in \emph{solved form} if it is in the form:
   \item $t = x^t \odot t'$, where $\odot$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered `solved' if no term $u$ in either of the above two forms exist such that $t =_e u$. If we took the term $(y + x^t) + z$ and rewrote it to $x^t + (y + z)$, it would then be in solved form. (Note that $x^t + (z + y)$ would also in solved form.) However, $x^t + (y - y)$ would not be in solved form, since a semantically equivalent term $x^t$ is in the second form.
 \end{enumerate}
 
-Some uses of the variable solver in the Halide compiler include:
-
-\begin{itemize}
-	\item \textbf{Trimming no-ops} The variable solver is used in analyzing the conditions under which work is performed within nested for-loops. For example, imagine that the body of an inner for-loop over some variable $x$ only performs an operation when the condition of some if-statement is true. If the compiler can show that this condition will only hold for a limited range of the values for $x$, then it can skip the regions where only a no-op will be performed by truncating the loop. Isolating $x$ as much as possible is helpful in performing this analysis.
-	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
-	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
-\end{itemize}
-
-\subsubsection{TrimNoOps}
+\subsubsection{Uses of the variable solver in the Halide compiler}
 \label{sec:trimnoops}
+
+The variable solver in the Halide compiler is used to reason about the bounds over variables and about their dependencies. As a worked example, let's consider the TrimNoOps stage of the compiler, in which the compiler tries to identify regions of loops in which no work is performed and thus those loop iterations can be skipped completely.
+
+%\begin{itemize}
+%	\item \textbf{Trimming no-ops} The variable solver is used in analyzing the conditions under which work is performed within nested for-loops. For example, imagine that the body of an inner for-loop over some variable $x$ only performs an operation when the condition of some if-statement is true. If the compiler can show that this condition will only hold for a limited range of the values for $x$, then it can skip the regions where only a no-op will be performed by truncating the loop. Isolating $x$ as much as possible is helpful in performing this analysis.
+%	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
+%	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
+%\end{itemize}
+
+
+
+Consider a simple Halide function over the variables $x$ and $y$. Whenever $2 \cdot x$ is greater than $y$, the function returns 5, otherwise it returns nothing. The function is then tiled using a 4 by 4 tile size.
 
 \begin{lstlisting}[language=C++]
 	Func F;
@@ -464,6 +468,7 @@ Some uses of the variable solver in the Halide compiler include:
 	f.tile(x, y, xi, yi, 4, 4);
 \end{lstlisting}
 
+The code is lowered to a set of nested for loops. The variables $x$ and $y$ now represent the number of tiles in their respective dimensions; at each iteration, they calculate the starting point for the next tile as the variables $yi_base$ and $xi_base$. The variables $xi$ and $yi$ then iterate over each point in the current tile.
 
 \begin{lstlisting}[language=C++]
 for(y=0; y < (y_extent+3)/4; y++) {
@@ -481,15 +486,34 @@ for(y=0; y < (y_extent+3)/4; y++) {
 }
 \end{lstlisting}
 
+Note that the body of the innermost for loop is an if statement. If the condition of the if statement is true, the loop will set the current location of the output (here idealized as $idx$) to the value 5. If the condition of the if statement is not true, then the loop will do nothing. Thus, if we can identify regions of the innermost loop where the condition of the if statement can never be true, we can optimize by skipping those regions entirely.
+
+To see if we can identify such a region, we take the condition of the if statement:
 
 \begin{lstlisting}[language=C++]
 	(xi_base + xi) * 2 < (yi_base + yi)
 \end{lstlisting}
 
+and use the variable solver to `solve' for the variable $xi$. 
+
 \begin{lstlisting}[language=C++]
 	xi <= ((yi_base + yi) - (xi_base* 2) - 1)/2
 \end{lstlisting}
 
+Here the variable solver is successful in rewriting the condition in terms of $xi$. Furthermore, we are able to state the expression as an upper bound of $xi$. We can thus calculate the maximum value of $xi$ for which the inner loop will perform any work. 
+
 \begin{lstlisting}[language=C++]
 	xi_new_max = ((yi_base + yi) - (xi_base* 2) - 1)/2
 \end{lstlisting}
+
+We can then use this new maximum as a new extent for the loop, allowing us to skip loop iterations where no work will be performed:
+
+\begin{lstlisting}[language=C++]
+	for(xi=0; xi<(xi_new_max + 1); xi++) {
+		if (xi_base + xi)*2 < (yi_base + yi) {
+			f[idx] = 5;
+		}
+	}
+\end{lstlisting}
+
+The variable solver is used in various other places in the compiler as well. For example, by `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently. The variable solver is also used to attempt to prove associativity of functions. If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
