@@ -360,7 +360,7 @@ An idealized version of the algorithm is presented in Algorithm~\ref{algo:synthe
 \label{algo:synthesis}
 \end{algorithm}
 
-(implementation of synthesis pipeline outlined here, full section TK)
+\jln{implementation of synthesis pipeline outlined here, needs to be fully written out in prose}
 
 Implemented in Rosette. How Rosette works. Chosen for quick development of pipeline and to take advantage of symbolic evaluation/some built-in simplification. Wrote an interpreter for the Halide expression language in Rosette. In order to handle the disparity between Halide/C++ semantics and Racket semantics, had to add some lightweight typing to prevent integer-valued expressions being used as boolean. Also div/mod issues (depending on if we fix this or just skip it).
 
