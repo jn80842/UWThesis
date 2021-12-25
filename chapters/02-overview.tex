@@ -46,36 +46,6 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 
 
 
-%\subsubsection{TrimNoOps}
-%
-%When compiling a pipeline, the Halide compiler will attempt to truncate loop bounds to the regions where work is actually performed. The TrimNoOps %phase examines a for loop and attempts to prove that some regions of the loop are no-ops; if it can show this, it rewrites the loop so those %regions are never visited. The variable solver used in performing this reasoning.
-%
-%For example, consider a for loop that applies the following function over some range of $x$ and $y$:
-%
-%\begin{verbatim}
-%f(x, y) = x + y + select((x == 10) && (x < y), 1, 0)
-%\end{verbatim}
-%
-%After several compilation phases, the for loop is transformed into:
-%
-%\begin{verbatim}
-%f = {
-%	for(y, y_min, y_extent) {
-%		for(x, x_min, x_extent) {
-%			f[(y * stride + x) - (y_min * stride + x_min)] = x + y
-%		}
-%	}
-%	for(y, y_min, y_extent) {
-%		for(x, x_min, x_extent) {
-%			f[(y * stride + x) - (y_min * stride + x_min)] = 
-%			f[(y * stride + x) - (y_min * stride + x_min)] + select((x == 10) && (x < y), 1, 0)
-%		}
-%	}
-%}
-%\end{verbatim}
-
-%%% the example itself is easy to understand but it doesn't actually make use of the variable solver in solving it (it does call it, just doesn't get back interesting results)
-
 \begin{figure*}
 \begin{tabular}{cccc}
 
@@ -481,6 +451,9 @@ Some uses of the variable solver in the Halide compiler include:
 	\item \textbf{Breaking dependencies in GPU code} By `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently.
 	\item \textbf{Proving associativity} If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.
 \end{itemize}
+
+\subsubsection{TrimNoOps}
+\label{sec:trimnoops}
 
 \begin{lstlisting}[language=C++]
 	Func F;

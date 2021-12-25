@@ -402,6 +402,7 @@ For each unique target variable, we ask the solver to choose some binary operato
 \subsubsection{Move target variables up order sketch}
 
 \section{Evaluation of synthesized TRSs}
+\label{sec:varsolvereval}
 
 To evaluate our synthesis process, we attempted to synthesize term rewriting systems that could make meaningful progress on a realistic set of benchmarks. We gathered a set of expressions by instrumenting calls to the existing Halide variable solver and running a suite of applications with randomly generated schedules. As our current synthesis pipeline does not support synthesis of rules guarded by predicates, there was no need to consider constant values, so we replaced all constants in the gathered expressions with fresh variable. After removing all duplicate expressions modulo alpha renaming, we had a set of 4218 expressions to serve as benchmarks. Note that not all of these benchmarks can be put into solved form, and since we lack a decision procedure for this undecidable problem, we do not know how many of the benchmarks can be solved.
 
