@@ -1,17 +1,7 @@
 \chapter{Background}
 \label{chapter:overview}
 
-We define term rewriting systems and give some background. We then discuss the use of term rewriting systems in the Halide compiler and describe the two main such systems, the \emph{simplifier} and the \emph{variable solver}. We describe the rewriting algorithm used by the Halide compiler and discuss the requirements that led to its design choices. 
-
-The Halide compiler contains term rewriting systems operating over the space of Halide expressions (see appendix~\ref{a:grammar} for
-the full Halide expression grammar). The language of Halide expressions
-operates over vectors and scalars of integers, booleans, and real values.  However, in
-this work we concentrate on the TRS as it applies to integer and boolean values, for
-both vectors and scalars, because the most important uses of the TRS within the compiler
-apply to these types.  In this section, we give some background on term rewriting systems.
-We then describe how the Halide compiler uses term rewriting systems as reasoning engines
-and the design decisions that motivate the custom rewriting engine, as well as the scope
-of our work.
+We define term rewriting systems and give some background. We briefly describe Halide and the Halide expression language we will be operating on throughout this work. We then describe the uses of term rewriting systems within the Halide compiler, including the term rewriting algorithm used by the compiler, the requirements that led to its design choices, and the two term rewriting systems we use as case studies in this work, the simplifier and the variable solver.
 
 \section{Term Rewriting Systems}
 
@@ -41,9 +31,16 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 (y_1 \diamondsuit y_1) \diamondsuit (y_2 \clubsuit y_3)
 \]
 
+\section{Halide and the Halide expression language}
+
+The Halide compiler contains term rewriting systems that manipulate terms in the Halide expression language. This language
+operates over vectors and scalars of integers, booleans, and real values.  However, in
+this work we concentrate on the TRS as it applies to integer and boolean values, for
+both vectors and scalars, because the most important uses of the TRS within the compiler
+apply to these types.
+The Halide expression language contains the usual arithmetic operators and uses the Euclidean definition for division and modulo. It also contains the boolean operators and, or, and not, as well as the usual comparators. The \texttt{select} operator takes three arguments and behaves like an if-then-else statement, returning the second argument if its first evaluates to true and the third argument otherwise. There are two operators that can create vectors from scalars: $\texttt{broadcast}(v, s)$, which creates a vector of size $s$ with each value initialized to $v$, and $\texttt{ramp}(v, s, k)$, which creates a vector of size $s$ where the first value is initialized to $v$ and each subsequent value is increased by the stride $k$. Most operators that take integer or boolean arguments can also take vector arguments whose values are integer or boolean type respectively. For the full Halide expression grammar, see appendix~\ref{a:grammar}.
 
 \section{Term rewriting systems in the Halide compiler}
-
 
 
 \begin{figure*}
@@ -165,7 +162,8 @@ We then apply this substitution to the right-hand side (RHS) of the rule to obta
 \subsection{The Halide rewriting algorithm}
 \label{sec:customalgo}
 
-In a term rewriting system, a single rule may be able to match an input expression in 
+A term rewriting system is simply a set of rewrite rules; when we use a TRS to transform an expression, we also need to define a procedure for 
+applying those rewrite rules to the expression.  In a TRS, a single rule may be able to match an input expression in 
 multiple ways, and there may be multiple rules in the ruleset which could be used 
 to rewrite the expression. A term rewriting algorithm might choose one of many alternatives 
 and later backtrack if it turns out not to be fruitful; it might make use of 
@@ -178,7 +176,7 @@ Since the rewriter is invoked thousands of times with each call of the compiler,
 it chooses to sacrifice some solving power in exchange for performance.
 
 The Halide term rewriting algorithm simplifies an input expression in a
-depth-first, bottom-up traversal of the expression DAG. At each node, it 
+depth-first, bottom-up traversal of the expression AST. At each node, it 
 uses the root node to pick a list of rules, then
 attempts to match the subtree expression with the rule LHSs in a fixed priority. Matching
 is performed purely syntactically, using C++ template metaprogramming.
@@ -186,14 +184,13 @@ is performed purely syntactically, using C++ template metaprogramming.
 called \emph{symbolic constants}, that can match only with constant values; all other
 variables can match any subterm as usual.
 When a match is found, the algorithm rewrites the
-subtree expression using the RHS of that rule, and then attempts to simplify the
-subtree expression again. If no rule matches the subtree, the traversal
+subtree expression using the RHS of that rule, and then recurses and starts applying rewrites on the newly rewritten expression. If no rule matches the subtree, the traversal
 continues; when the entire expression cannot be simplified further, the
 rewritten expression is returned. See Figure~\ref{fig:algoexample} for a worked
 example.
 
-The rewrite rules optionally contain a compile-time predicate guard. 
-These guards contain only symbolic constants\footnote{Existing 
+The rewrite rules optionally contain a predicate guard. 
+These guards contain only special variables whose values are known at the time of rule application\footnote{Existing 
 rules sometimes have predicates that check if
   non-constant variables can be shown to have certain properties at compile
   time, but these are expensive and used sparingly.}; when the LHS of a rule
@@ -216,7 +213,26 @@ first operand and a subtraction as its second operand, a rule will switch their 
 These rules are all early in the application priority, so later rules can rely on
 expressions having a quasi-canonical form.
 
-\subsubsection{Why Not Z3?}
+\subsection{The rewriting algorithm's design requirements}
+
+Because a reasoning engine implemented as a term rewriting system may be invoked thousands of times in a single compilation, the rewriting algorithm outlined above was designed to be fast and use very little memory. For that reason the algorithm is non-backtracking and keeps only one expression in state, sacrificing some potential solving power for performance. 
+In this work, we operate within the scope of Halide's TRS algorithm
+  and work to make the TRSs used by that algorithm as correct, general, and robust as possible.  Because
+  the space of expressions we consider constitutes an undecidable theory, any complete
+  TRS is impossible.  Instead, we strive to improve correctness by ensuring the TRSs
+  will always terminate on any expression and that each individual rewrite
+  preserves semantics; and we improve generality by expanding the rulesets to
+  contain rewrites that apply to real-world expressions, rather than
+  arbitrary new rules that may not apply to any expressions the compiler will encounter.
+
+These improvements require overcoming challenging obstacles.  First,
+  we must perform a post-hoc verification of a large body of existing rules;
+  proving a subset of rules correct or that a subset of rules do not result in infinite
+  rewriting loops is insufficient to guarantee robust behavior.  Secondly,
+  these rewrites operate in an undecidable theory, making automated verification
+  difficult.  Finally, because of this undecidability, we cannot necessarily
+  rely on traditional automated techniques to discover new rules.
+
 \begin{table}
 \caption{We compare the performance of Z3 and the Halide TRS in proving a set of 4304 expressions gathered from realistic compiler output. Note that expressions in the ``not proven'' column include expressions that are true but not found to be so by the solvers as well as expressions that are not true. }
 \centering
@@ -230,102 +246,18 @@ Halide TRS & 2s & 885 & 3419
 \end{table}
 
 
-Given that we make use of the Z3 solver~\citep{de2008z3} for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 for simplification. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
+Given that we make use of the Z3 solver~\citep{de2008z3} for both verification and synthesis, it is natural to ask why Halide could not simply call Z3 as its reasoning engine. Z3 is the product of extensive development and is a very powerful, general-purpose solver. However, the Halide term rewriting system has a few key properties that Z3 does not: deterministic output, low memory and compute requirements, and domain-specific optimizations.
 
 As discussed above, the Halide compiler must return the same schedule every time the same pipeline is run. Z3 can fix a random seed, but long-running queries may complete on a more powerful server while timing out on a different machine.
 
 While the Halide algorithm is less powerful than Z3, its deterministic, greedy rule application strategy
 gives it a smooth performance curve, whether it succeeds or fails in simplifying an input expression.
-A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including provably true expressions and expressions that are not provably true. Z3 could prove more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. This set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
+A solver like Z3 tends to give very good performance most of the time but gets bogged down in difficult cases, requiring the use of timeouts. The Halide algorithm ``fails fast'': on an input expression which does not match any rule,  the Halide algorithm will complete in time linear to the size of the expression, taking on the order of one CPU cycle per term in the expression per rule in the TRS. To demonstrate this performance tradeoff, we gathered 4304 expressions from queries the Halide compiler made when compiling realistic pipelines, including both provably true expressions and expressions that are not provably true. Z3 could prove approximately 30\% more expressions true (within a 60 second timeout), but was starkly less performant. As shown in Table~\ref{tab:simplifiervsz3}, Z3 took over 7 minutes to check the set of expressions while the Halide TRS took just 2 seconds. This set of expressions is much smaller than the number of calls the compiler makes to the rewriter in compiling a single pipeline.
 
 Because the Halide algorithm at every step chooses one rule to apply to the single expression it is working on, it scales well in terms of the number of rules in the TRS. See Section~\ref{ssec:compilationspeed} for an evaluation of the effects of adding newly synthesized rules on the performance of the compiler. 
 
-Finally, although Z3 can simplify expressions, simply reducing the size of an expression is not necessarily the goal for the compiler. For example, gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide rewriter uses a domain-specific strategy to guide expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
+Finally, Z3 is a very powerful general-purpose solver, but Halide TRSs can be targeted for their specific use cases. For example, when rewriting an expression to be shorter, gathering like terms in some cases can actually prevent Halide or LLVM optimizations from applying. The Halide TRSs use domain-specific strategies to guide expressions into more optimizable forms and can be changed or tuned as needed if further optimizations are discovered. 
 
-\subsection{Completeness of the Halide TRS}
-\label{sec:completion}
-
-We know by observation that the Halide simplifier TRS cannot prove certain equalities 
-that are in fact true, or reduce certain expressions that can be further simplified. 
-Our goal is to learn new rules that would strengthen the TRS and allow it to make
-further progress on these ``stuck'' expressions. This goal seems similar to that of 
-\emph{completion}, which constructs a decision procedure through syntatic rewrites
-for a set of identities. We do not use completion directly, although
-our synthesis algorithm could be considered analogous to completion in some ways.
-
-In the standard Knuth-Bendix completion algorithm~\citep{knuth1983simple}, we take a
-finite set of identities $E$ and a reduction order $>$ on terms as inputs; if successful, the
-algorithm will return a finite, convergent set of rules $R$ that is equivalent to 
-$E$. The algorithm may also fail, or fail to terminate. At each step the algorithm
-maintains a set of identities and a set of rules, both of which can be updated; the 
-algorithm may transform an identity into a new rule, find a new identity as a 
-consequence of the ruleset, or use the present ruleset to refine either an identity 
-or a rule. The algorithm runs until the ruleset has converged; specific implementations
-may use some conditions under which to terminate with a failure.
-
-No finite set of identities exists for the theory of integers. We could
-fix a set of identities to use in a completion procedure, but choosing these axioms
-is a non-trivial task. One issue is that the theory contains axioms such as commutativity;
-an identity such as $x + y \equiv y + x$ cannot be oriented by any possible reduction 
-order, so our completion algorithm cannot make use of this fact. Another is that any
-sufficiently powerful set of identities would almost certainly result in a non-terminating
-completion procedure.  In addition, even if we use a subset of the Halide TRS for our
-identities (thus yielding a confluent Halide TRS), our experience shows that many
-failures in the compiler's use of the TRS are due to missing semantic facts that are not
-derivable from the current Halide ruleset.
-
-%%% SAK: I integrated this into a sentence above.  Not sure we need this much text.
-%% \modified{One approach might be to transform the existing Halide TRS into a set of undirected
-%% identities $E_R$ and use it together with a reduction order as inputs to a completion procedure. 
-%% If successful, this would yield a confluent TRS, for which any sequence of rewrites to 
-%% an expression would ultimately yield the same result. (It is not immediately clear how 
-%% to handle rule predicates in this case, however.) While this is certainly desirable, 
-%% our experience is that many proof failures in the current Halide TRS is not due to a 
-%% lack of confluence, but because of knowledge of the Halide expression langauge semantics 
-%% not encompassed by the identities in $E_R$.}
-
-%Instead, our synthesis algorithm seeks to learn rules which cannot (necessarily) be 
-  %deduced from the existing ruleset.
-In the absence of a finite set of identities, we
-treat an SMT solver as a decision procedure to determine if a suggested identity 
-holds in our theory (of course, the solver itself is also incomplete; we only make use of the 
-soundness of the solver and cannot derive any information in the case where the solver cannot
-show that an identity holds). If the identity holds and can be oriented using our reduction order, 
-it is added as a rule. It is possible that the newly-synthesized rule may be a consequence 
-of the existing ruleset and thus could have been found by running completion, 
-but we know that many synthesized rules contain information that is previously 
-unknown to the TRS.
-
-If we consider our solver as standing in for an infinite set of identities that make up
-our theory, we clearly could synthesize an infinite number of rules. Here we make use
-of the fact that expressions encountered by the compiler have some bias 
-and are not sampled randomly from the entire expression space. In a preliminary 
-experiment, we tried generating LHSs at random within a certain expression size and 
-synthesizing RHSs to serve as new rules. We were able to find an extremely large number of 
-``missing'' rules not represented in the current TRS, but the new ruleset had 
-no measurable performance impact on benchmarks. Thus, we only synthesize rules if their LHS could be 
-applied to at least one expression observed by the compiler under realistic usecases. %Even 
-%without a formal definition of the bias on encountered expressions, we are able to 
-%target synthesis to produce new rules that have some impact on compiler output.
-
-\subsection{Scope: Robust, Fast, Non-Backtracking Ruleset}
-In this work, we operate within the scope of Halide's TRS algorithm
-  and work to make the TRS as correct, general, and robust as possible.  Because
-  the space of expressions we consider constitutes an undecidable theory, a complete
-  TRS is impossible.  Instead, we strive to improve correctness by ensuring the TRS
-  will always terminate on any expression and that each individual rewrite
-  preserves semantics; and we improve generality by expanding the ruleset to
-  contain rewrites that apply to real-world expressions, rather than
-  arbitrary new rules that may not apply to any expressions the compiler will encounter.
-
-These improvements require overcoming challenging obstacles.  First,
-  we must perform a post-hoc verification of a large body of existing rules;
-  proving a subset of rules correct or that a subset of rules do not result in infinite
-  rewriting loops is insufficient to guarantee robust behavior.  Secondly,
-  these rewrites operate in an undecidable theory, making automated verification
-  difficult.  Finally, because of this undecidability, we cannot necessarily
-  rely on traditional automated techniques to discover new rules.
-%\sak{Should we say something about how this applies to things other than Halide?}
 
 \subsection{The Simplifier}
 \label{sec:uses-of-trs}
@@ -397,8 +329,8 @@ The rules for simplifying to perform cancellations and
 The use as a proof engine occurs when the compiler must prove properties about the code in order to guarantee the
   correctness of specific transformations or the relationships between bounds of
   different loops or producer-consumer relationships.  In such cases, the compiler constructs
-  an expression that must be true or false in order to guarantee correctness, then applies
-  the TRS to see if the expression simplifies to a single boolean value.
+  an expression that must be true (or false) in order to guarantee correctness, then applies
+  the TRS to see if the expression simplifies to a single constant boolean value.
 
 For example, Halide uses Euclidean division, which rounds according to the sign of the
   denominator.  Lowering this to code requires emitting several instructions, which can be
@@ -409,8 +341,9 @@ For example, Halide uses Euclidean division, which rounds according to the sign 
   $0 < y\; ||\; 0 < 1$, which then is transformed to true (since the second clause is always true).
   Thus, the compiler is able to replace Euclidean division with machine division.
 
-TRS failures have adverse results on the compiler, making it unpredictable and
-  difficult for programmers to use.  When the TRS fails to properly simplify an expression or
+Simplifier failures have adverse results on the compiler, making it unpredictable and
+  thus difficult for Halide program authors to reason about the performance of their schedules.  
+  When the TRS fails to properly simplify an expression or
   prove a property, the consequences include: 
 \begin{itemize}
 \item Insufficiently tight bounds on loops and allocations, which may result in
@@ -426,26 +359,23 @@ TRS failures have adverse results on the compiler, making it unpredictable and
   or loops infinitely.
 \end{itemize}
 
-Thus, correctness and generality of the TRS are essential to make the compiler
+Thus, correctness and generality of the simplifier are essential qualities for making the compiler
 robust and able to generate fast code.
 
 \subsection{The Variable Solver}
 
-The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name and `solves' the expression for that variable, isolating it on the left of an expression. In the formalism described above, $\phi(s)$ is true if $s$ is in the form $v \odot e$, where $v$ is the target variable, $\odot$ is some binary operator, and $e$ is a term that does not contain the target variable $v$.
+The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name as inputs and `solves' the expression for that variable, isolating it on the left of an expression.
 
-$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about a hundred rules. This system is much smaller and less mature than the simplifier, and augmenting it with synthesized rules will potentially result in much bigger performance gains than we saw with the simplifier.
+$\texttt{SolveExpression}$ currently rewrites expressions using a recursive visitor that ``matches'' the expression using if statements. We have translated this into a term rewriting system that contains about a hundred rules. This system is much smaller and less mature than the simplifier, and using synthesis to author new rulesets will potentially result in much bigger performance gains than we saw with the more highly optimized simplifier.
 
-Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term $t$. We use the special variable $x^t$ to stand for the target variable, or the variable that the TRS is 'solving' for.
+We formally define the purpose of the variable solver as follows. Let $|t|_x$ represent the number of occurrences of the variable $x$ in the term $t$. We use the special variable $x^t$ to stand for the target variable, or the variable that the TRS is 'solving' for.
 
 We say that a term $t$ is in \emph{solved form} if it is in the form:
 \begin{enumerate}
   \item $|t|_{x^t} = 0$ (the term $t$ does not contain the target variable $x^t$). If we took the term $(x^t - x^t) + y$ and rewrote it to $y$, $y$ would be in solved form, as it does not contain any instances of $x^t$.
   \item $t = x^t$ (the term $t$ is precisely the target variable $x^t$). If we took the term $x^t + (y * (z - z))$ and rewrote it to $x^t$, $x^t$ would then be in solved form, as it consists of the target variable alone.
-  \item $t = x^t \odot t'$, where $\odot$ is any binary function in $\Sigma$, and $|t'|_{x^t} = 0$. Terms in this form are only considered `solved' if no term $u$ in either of the above two forms exist such that $t =_e u$. If we took the term $(y + x^t) + z$ and rewrote it to $x^t + (y + z)$, it would then be in solved form. (Note that $x^t + (z + y)$ would also in solved form.) However, $x^t + (y - y)$ would not be in solved form, since a semantically equivalent term $x^t$ is in the second form.
+  \item $t = x^t \odot t'$, where $\odot$ is any binary operator in the Halide expression language, and $|t'|_{x^t} = 0$. Terms in this form are only considered `solved' if no term $u$ in either of the above two forms exist such that $t =_e u$. If we took the term $(y + x^t) + z$ and rewrote it to $x^t + (y + z)$, it would then be in solved form. (Note that $x^t + (z + y)$ would also in solved form.) However, $x^t + (y - y)$ would not be in solved form, since a semantically equivalent term $x^t$ is in the second form.
 \end{enumerate}
-
-\subsubsection{Uses of the variable solver in the Halide compiler}
-\label{sec:trimnoops}
 
 The variable solver in the Halide compiler is used to reason about the bounds over variables and about their dependencies. As a worked example, let's consider the TrimNoOps stage of the compiler, in which the compiler tries to identify regions of loops in which no work is performed and thus those loop iterations can be skipped completely.
 
@@ -459,61 +389,61 @@ The variable solver in the Halide compiler is used to reason about the bounds ov
 
 Consider a simple Halide function over the variables $x$ and $y$. Whenever $2 \cdot x$ is greater than $y$, the function returns 5, otherwise it returns nothing. The function is then tiled using a 4 by 4 tile size.
 
-\begin{lstlisting}[language=C++]
+\begin{verbatim}
 	Func F;
 	Var x, y;
 	f(x, y) = select(2 * x < y, 5, undef<int>());
 
 	Var xi, yi;
 	f.tile(x, y, xi, yi, 4, 4);
-\end{lstlisting}
+\end{verbatim}
 
-The code is lowered to a set of nested for loops. The variables $x$ and $y$ now represent the number of tiles in their respective dimensions; at each iteration, they calculate the starting point for the next tile as the variables $yi_base$ and $xi_base$. The variables $xi$ and $yi$ then iterate over each point in the current tile.
+The code is lowered to a set of nested for loops. The variables $x$ and $y$ now represent the number of tiles in their respective dimensions; at each iteration, they calculate the starting point for the next tile as the variables $yi\_base$ and $xi\_base$. The variables $xi$ and $yi$ then iterate over each point in the current tile.
 
-\begin{lstlisting}[language=C++]
+\begin{verbatim}
 for(y=0; y < (y_extent+3)/4; y++) {
-	yi_base = min(y * 4, y_extent - 4);
-	for(x=0; x < (x_extent+3)/4; x++) {
-		xi_base = min(x * 4, x_extent - 4);
-		for(yi=0; yi<4; yi++) {
-			for(xi=0; xi<4; xi++) {
-				if (xi_base + xi)*2 < (yi_base + yi) {
-					f[idx] = 5;
-				}
-			}
-		}
-	}
+    yi_base = min(y * 4, y_extent - 4);
+    for(x=0; x < (x_extent+3)/4; x++) {
+        xi_base = min(x * 4, x_extent - 4);
+        for(yi=0; yi<4; yi++) {
+            for(xi=0; xi<4; xi++) {
+                if (xi_base + xi)*2 < (yi_base + yi) {
+                    f[idx] = 5;
+                }
+            }
+        }
+    }
 }
-\end{lstlisting}
+\end{verbatim}
 
 Note that the body of the innermost for loop is an if statement. If the condition of the if statement is true, the loop will set the current location of the output (here idealized as $idx$) to the value 5. If the condition of the if statement is not true, then the loop will do nothing. Thus, if we can identify regions of the innermost loop where the condition of the if statement can never be true, we can optimize by skipping those regions entirely.
 
 To see if we can identify such a region, we take the condition of the if statement:
 
-\begin{lstlisting}[language=C++]
+\begin{verbatim}
 	(xi_base + xi) * 2 < (yi_base + yi)
-\end{lstlisting}
+\end{verbatim}
 
 and use the variable solver to `solve' for the variable $xi$. 
 
-\begin{lstlisting}[language=C++]
+\begin{verbatim}
 	xi <= ((yi_base + yi) - (xi_base* 2) - 1)/2
-\end{lstlisting}
+\end{verbatim}
 
 Here the variable solver is successful in rewriting the condition in terms of $xi$. Furthermore, we are able to state the expression as an upper bound of $xi$. We can thus calculate the maximum value of $xi$ for which the inner loop will perform any work. 
 
-\begin{lstlisting}[language=C++]
+\begin{verbatim}
 	xi_new_max = ((yi_base + yi) - (xi_base* 2) - 1)/2
-\end{lstlisting}
+\end{verbatim}
 
 We can then use this new maximum as a new extent for the loop, allowing us to skip loop iterations where no work will be performed:
 
-\begin{lstlisting}[language=C++]
-	for(xi=0; xi<(xi_new_max + 1); xi++) {
-		if (xi_base + xi)*2 < (yi_base + yi) {
-			f[idx] = 5;
-		}
-	}
-\end{lstlisting}
+\begin{verbatim}
+    for(xi=0; xi<(xi_new_max + 1); xi++) {
+        if (xi_base + xi)*2 < (yi_base + yi) {
+            f[idx] = 5;
+        }
+    }
+\end{verbatim}
 
 The variable solver is used in various other places in the compiler as well. For example, by `solving' expressions within functions for relevant variables, the variable solver can remove spurious dependencies and allow the compiler to place computations over GPU code more efficiently. The variable solver is also used to attempt to prove associativity of functions. If the operations within a function can be shown to be associative (for example, a sequence of adds and multiplies), the compiler can rearrange the associative components in whatever order will be most efficient. `Solving' such an expression for each variable in turn has the effect of normalizing it, making associativity easier to prove.

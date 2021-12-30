@@ -26,6 +26,75 @@ No matter how confident we are in our choice of benchmarks, it is difficult to d
 \subsection{Completion}
 \label{sec:completion}
 
+\subsection{Completeness of the Halide TRS}
+\label{sec:completion}
+
+We know by observation that the Halide simplifier TRS cannot prove certain equalities 
+that are in fact true, or reduce certain expressions that can be further simplified. 
+Our goal is to learn new rules that would strengthen the TRS and allow it to make
+further progress on these ``stuck'' expressions. This goal seems similar to that of 
+\emph{completion}, which constructs a decision procedure through syntatic rewrites
+for a set of identities. We do not use completion directly, although
+our synthesis algorithm could be considered analogous to completion in some ways.
+
+In the standard Knuth-Bendix completion algorithm~\citep{knuth1983simple}, we take a
+finite set of identities $E$ and a reduction order $>$ on terms as inputs; if successful, the
+algorithm will return a finite, convergent set of rules $R$ that is equivalent to 
+$E$. The algorithm may also fail, or fail to terminate. At each step the algorithm
+maintains a set of identities and a set of rules, both of which can be updated; the 
+algorithm may transform an identity into a new rule, find a new identity as a 
+consequence of the ruleset, or use the present ruleset to refine either an identity 
+or a rule. The algorithm runs until the ruleset has converged; specific implementations
+may use some conditions under which to terminate with a failure.
+
+No finite set of identities exists for the theory of integers. We could
+fix a set of identities to use in a completion procedure, but choosing these axioms
+is a non-trivial task. One issue is that the theory contains axioms such as commutativity;
+an identity such as $x + y \equiv y + x$ cannot be oriented by any possible reduction 
+order, so our completion algorithm cannot make use of this fact. Another is that any
+sufficiently powerful set of identities would almost certainly result in a non-terminating
+completion procedure.  In addition, even if we use a subset of the Halide TRS for our
+identities (thus yielding a confluent Halide TRS), our experience shows that many
+failures in the compiler's use of the TRS are due to missing semantic facts that are not
+derivable from the current Halide ruleset.
+
+%%% SAK: I integrated this into a sentence above.  Not sure we need this much text.
+%% \modified{One approach might be to transform the existing Halide TRS into a set of undirected
+%% identities $E_R$ and use it together with a reduction order as inputs to a completion procedure. 
+%% If successful, this would yield a confluent TRS, for which any sequence of rewrites to 
+%% an expression would ultimately yield the same result. (It is not immediately clear how 
+%% to handle rule predicates in this case, however.) While this is certainly desirable, 
+%% our experience is that many proof failures in the current Halide TRS is not due to a 
+%% lack of confluence, but because of knowledge of the Halide expression langauge semantics 
+%% not encompassed by the identities in $E_R$.}
+
+%Instead, our synthesis algorithm seeks to learn rules which cannot (necessarily) be 
+  %deduced from the existing ruleset.
+In the absence of a finite set of identities, we
+treat an SMT solver as a decision procedure to determine if a suggested identity 
+holds in our theory (of course, the solver itself is also incomplete; we only make use of the 
+soundness of the solver and cannot derive any information in the case where the solver cannot
+show that an identity holds). If the identity holds and can be oriented using our reduction order, 
+it is added as a rule. It is possible that the newly-synthesized rule may be a consequence 
+of the existing ruleset and thus could have been found by running completion, 
+but we know that many synthesized rules contain information that is previously 
+unknown to the TRS.
+
+If we consider our solver as standing in for an infinite set of identities that make up
+our theory, we clearly could synthesize an infinite number of rules. Here we make use
+of the fact that expressions encountered by the compiler have some bias 
+and are not sampled randomly from the entire expression space. In a preliminary 
+experiment, we tried generating LHSs at random within a certain expression size and 
+synthesizing RHSs to serve as new rules. We were able to find an extremely large number of 
+``missing'' rules not represented in the current TRS, but the new ruleset had 
+no measurable performance impact on benchmarks. Thus, we only synthesize rules if their LHS could be 
+applied to at least one expression observed by the compiler under realistic usecases. %Even 
+%without a formal definition of the bias on encountered expressions, we are able to 
+%target synthesis to produce new rules that have some impact on compiler output.
+
+
+%\sak{Should we say something about how this applies to things other than Halide?}
+
 As we observed in the variable solver evaluation, adding a new rule is not guaranteed to strictly increase the number of benchmarks a TRS can solve. Particularly, we saw a case in which the synthesized goal form TRS was able to solve a particular expression when the synthesized gradual TRS was not; the application of a rule that only existed in the gradual TRS blocked the use of a rule that could have fully solved the expression. This occurred because the gradual TRS was not \emph{confluent}. In a confluent ruleset $R$, for any expression $s$, if some sequence of rule applications from $R$ can transform $s$ to $t$, and some other sequence of rule applications can transform $s$ to $t'$, then both $t$ and $t'$ must be eventually rewritten by $R$ to the same form $u$. In other words, $R$ will always normalize its inputs to the same form no matter what order rewrites are applied in. 
 
 If a ruleset $R$ is finite and terminating, then a decision procedure exists to determine whether or not $R$ is confluent. Thus, we are able to detect if adding a new rule to a ruleset we are synthesizing would change it from confluent to non-confluent, giving rise to potential issues like the failing benchmark above. If we can detect these issues, can we address them at the time the rule is synthesized?
