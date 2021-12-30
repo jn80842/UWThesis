@@ -203,7 +203,7 @@ We represent target-matching variables as $x^t, y^t$, etc., and non-target-match
 
 \subsection{Reduce occurrences of target-matching variables}
 
-\[ s_1 >_t s_2 \iff \forall x^t \in \mathcal{V}(s_1) |s_1|_{x^t} \geq |s_2|_{x^t}
+\[ s_1 >_t s_2 \iff \forall x^t \in \mathcal{V}ar(s_1) |s_1|_{x^t} \geq |s_2|_{x^t}
 \]
 
 The proof that this order is a valid reduction order is straightforward. The order is clearly well-formed, since $|s|_{t_i}$ has a minimum value of 0. The order is compatible with $\Sigma$-operations; for any
@@ -212,8 +212,8 @@ The proof that this order is a valid reduction order is straightforward. The ord
 \]
 
 \begin{align*}
-\sum_{x^t \in \mathcal{V}} \sum_{0}^{i - 1} |t_k|_{x^t_k} + |s_1|_{x^t_k} + \sum_{i + 1}^{n} |t_k|_{x^t_k} >
-\sum_{x^t \in \mathcal{V}} \sum_{0}^{i - 1} |t_k|_{x^t_k} + |s_2|_{x^t_k} + \sum_{i + 1}^{n} |t_k|_{x^t_k}
+\sum_{x^t \in \mathcal{V}ar} \sum_{0}^{i - 1} |t_k|_{x^t_k} + |s_1|_{x^t_k} + \sum_{i + 1}^{n} |t_k|_{x^t_k} >
+\sum_{x^t \in \mathcal{V}ar} \sum_{0}^{i - 1} |t_k|_{x^t_k} + |s_2|_{x^t_k} + \sum_{i + 1}^{n} |t_k|_{x^t_k}
 \end{align*}
 
 Since $|s|_{x^t}$ is always non-negative, the implication clearly holds.
@@ -267,9 +267,9 @@ Similar to the previous order, this order is an intuitive step in isolating the 
 We then say that $s_1 >_\uparrow s_2$ if, for every target-matching variable $x_t$ that occurs in $s_1$, there are an equal or greater number of occurrences of that variable in $s_1$ than in $s_2$, and $\texttt{bfs_hash}(s_1, x) \leq bfs_hash(s_2, x)$, and if there exists at least one target-matching variable whose \texttt{bfs_hash} value is strictly greater in $s_2$ than in $s_1$.
 
 \begin{align*}
-s_1 >_\uparrow s_2 \iff & \forall x^t \in \mathcal{V}(s_1) \st (|s_1|_{x^t} \geq |s_2|_{x^t} \wedge \\
+s_1 >_\uparrow s_2 \iff & \forall x^t \in \mathcal{V}ar(s_1) \st (|s_1|_{x^t} \geq |s_2|_{x^t} \wedge \\
                         & \texttt{bfs_hash}(s_1, x_t) \leq \texttt{bfs_hash}(s_2, x_t)) \\
-                        & \wedge \exists x^t \in \mathcal{V}(s_2) \st \texttt{bfs_hash}(s_1, x_t) < \texttt{bfs_hash}(s_2, x_t))
+                        & \wedge \exists x^t \in \mathcal{V}ar(s_2) \st \texttt{bfs_hash}(s_1, x_t) < \texttt{bfs_hash}(s_2, x_t))
 \end{align*}
 
 For example, consider the rule
@@ -298,8 +298,8 @@ The orders described above describe a strategy for manipulating terms towards th
 Reduction orders must be checkable syntactically, so we relax the requirement that the second form is only considered solved if no equivalent term in the first form exists and so on. Then, we can formalize these forms into orders such that terms that are solved are ordered less than terms that are not solved.
 
 \begin{enumerate}
-    \item $s_1 >_{f1} s_2 \iff \exists x^t \in \mathcal{V}(s_1) \wedge \neg \exists x^t \in \mathcal{V}(s_2)$
-    \item $s_1 >_{f2} s_2 \iff \exists x^t \in \mathcal{V}(s_1) \wedge s_1 \neq x^t \wedge s_2 = x^t$
+    \item $s_1 >_{f1} s_2 \iff \exists x^t \in \mathcal{V}ar(s_1) \wedge \neg \exists x^t \in \mathcal{V}ar(s_2)$
+    \item $s_1 >_{f2} s_2 \iff \exists x^t \in \mathcal{V}ar(s_1) \wedge s_1 \neq x^t \wedge s_2 = x^t$
     \item $s_1 >_{f3} s_2 \iff s_1$ cannot match $f(t_0, n_0)$ for any $f \in \Sigma$, and $s_1$ can match $f(t_0, n_0)$ for some $f \in \Sigma$
 \end{enumerate}
 
@@ -480,7 +480,7 @@ However the gradual TRS first applies a rule not in the goal form TRS
 
 Although the gradual TRS contains the rule the goal form TRS used to reach solved form, this additional rewrite means that the rule no longer applies, and the gradual TRS gets stuck. We will discuss this type of problem more fully in section~\ref{sec:completion}, but for now we will observe that adding new rules is not an unalloyed good.
 
-We also compared the performance of our synthesized TRSs against several other TRSs we constructed. First, we translated the `rules' in the C++ version of the variable solver currently in the Halide compiler into formal rewrite rules. We removed any rules that were guarded by predicates, as our synthesis process does not currently support rule predicates. We then filtered that ruleset by the two reduction orders for comparison. (In fact, when running the unfiltered ruleset on the benchmarks, it failed to terminate, from which we can conclude that there is no reduction order that can be made to fit the full original ruleset. The Halide compiler version terminates now because it does not recurse on every rewrite but in certain cases simply returns.)
+We also compared the performance of our synthesized TRSs against several other TRSs we constructed (see table~\ref{tab:varsolverTRScomp} for the full results). First, we translated the `rules' in the C++ version of the variable solver currently in the Halide compiler into formal rewrite rules. We removed any rules that were guarded by predicates, as our synthesis process does not currently support rule predicates. We then filtered that ruleset by the two reduction orders for comparison. (In fact, when running the unfiltered ruleset on the benchmarks, it failed to terminate, from which we can conclude that there is no reduction order that can be made to fit the full original ruleset. The Halide compiler version terminates now because it does not recurse on every rewrite but in certain cases simply returns.)
 
 When the `original' ruleset was filtered by the gradual order, it consisted of 75 rules, more than twice the size of the synthesized gradual TRS. However it performed surprisingly poorly, solving only 106 benchmarks. However, it was able to solve 21 benchmarks that the synthesized gradual TRS was not.
 
@@ -490,8 +490,11 @@ In an earlier synthesis experiment, we tried using smaller inputs for our traini
 
 Finally, observing that all of these TRSs solved at least one expression that the synthesized gradual TRS could not, we took the union of \emph{all} of the TRSs by simply concatenating all the rulesets into one. The resulting union TRS performed the best of all, solving 1124 benchmarks including 179 that the synthesized gradual TRS could not. Filtering the union TRS by the goal form order, however, resulted in even better performance with 1180 expressions solved. Much like the one expression that the synthesized goal form TRS could solve but the synthesized gradual TRS could not, clearly some of the rules in the union gradual TRS are preventing helpful rewrites from occurring. Again, we will further discuss this issue in~\ref{sec:completion}.\jln{TODO: union ruleset sizes are approximate because the same rule appears in multiple TRSs in the union; get the accurate counts.}
 
-\begin{tabular}{l|r|r|r}
-Name & $|R|$ & Solved exprs & Solved exprs not solved by Gradual \\
+\begin{table}
+\centering
+\caption{Comparison of the performance of several variant TRSs on the variable solver benchmark set.}
+\begin{tabular}{l|r|r|p{5cm}}
+Name & $|R|$ & Solved exprs & Solved exprs \newline not solved by Gradual \\
 \hline
 Synthesized Gradual & 32 & 966 & 0 \\
 Synthesized Goal form & 21 & 949 & 1 \\
@@ -504,7 +507,8 @@ Small inputs (goal form) & 29 & 251 & 44 \\
 Union & ~625 & 1124 & 179 \\
 Union (goal form) & ~253 & 1180 & 218
 \end{tabular}
-
+\label{tab:varsolverTRScomp}
+\end{table}
 
 \section{Related work}
 \label{sec:related}
