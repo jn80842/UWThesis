@@ -2,12 +2,12 @@
 \label{chapter:verification}
 
 We improve the Halide simplifier term rewriting system by ensuring its soundness in
-two ways: first, we verify that each individual rule is correct, meaning that the
+two ways: first, we verify that each individual rule is \emph{correct}, meaning that the
 rewrite preserves semantics. Then we verify that the term rewriting system is
-guaranteed to terminate on all inputs by ensuring that no sequence of
+\emph{guaranteed to terminate} on all inputs by ensuring that no sequence of
 rule applications, on any input expression, can form a cycle.
 
-\subsection{Rule Verification}
+\section{Correctness}
 \label{sec:ruleverification}
 We verify each individual rule is correct by modeling Halide
 expressions in SMT2 and using the SMT solver Z3~\citep{de2008z3} to
@@ -23,8 +23,8 @@ differently (in Halide both evaluate to zero).
 %expressions do not have a true boolean type (true and false are represented by
 %unsigned integers of 1 bitwidth), so expressions must be typed as either
 %\texttt{Int} or \texttt{Bool} when translated into SMT2. The Halide expression
-Halide's TRS uses two vector-constructing operators, \texttt{broadcast} and \texttt{ramp}; all
-other integer operators can be coerced to vector operators. 
+All integer and boolean operators can be coerced to vector operators on vector inputs of the appropriate type. 
+Halide's TRS uses two vector-constructing operators, \texttt{broadcast} and \texttt{ramp}. 
 \texttt{broadcast(x, l)} projects some value $x$ to a vector of length $l$; because of
 the type coercion, we can simply represent \texttt{broadcast(x, l)} as the variable
 \texttt{x} in SMT2. \texttt{ramp(x, s, l)} creates a vector of length $l$
@@ -50,9 +50,6 @@ with a guard requiring some constant to be positive would be equally valid
 if the constant was non-zero.
 
 
-\paragraph{Evolving Semantics}
-\label{sub:evolvingsemantics}
-
 This mostly-automated approach to verification assists with changing
 the language semantics. Our initial work on verification was not on
 the semantics described above: division or modulo by zero was originally
@@ -66,68 +63,11 @@ we had only to add a case to show that the rule was true when the
 divisor was zero as well. In the course of reviewing
 these proofs, we identified \NumZdivRelaxedPredicates rules whose
 predicates included the condition that a divisor be non-zero and where
-that condition could safely be lifted. We found that the remaining
+that condition could safely be lifted. We found that
 \NumZdivFalseRules rules were not correct under the new semantics and
 submitted a patch to amend them.
 
-\subsection{Evaluation of verification work}
 
-\begin{itemize}
- \item \textbf{Can verification contribute to the Halide TRS, or is testing alone sufficient?} Although handwritten rules have been extensively fuzz-tested and new rules are peer-reviewed before inclusion, we were still able to discover \NumRulesFixed unsound rules through verification. In addition, verification was able to identify \NumZdivFalseRules rules that needed to be changed after a significant semantics redefinition, which would have been challenging to discover through testing. (Section~\ref{sec:eval-correctness})
-
-\end{itemize}
-
-\subsubsection{Can Verification Contribute to the Halide TRS, or is Testing Alone Sufficient?}
-\label{sec:eval-correctness}
-
-The Halide TRS has a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzzing has been discovering bugs for months. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered \NumRulesFixed new soundness bugs and \NumPredicatesRelaxed instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard so the fuzzer does not look for them. Furthermore, because the verification infrastructure was in place, it was possible to verify a change of semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics.
-
-The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered \NumRulesFixed incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
-
-Case $\mathbb{H}$
-\footnote{
-\label{footnote:casesfi}
-$\mathbb{F}$: \url{https://github.com/halide/Halide/pull/4721}
-$\mathbb{G}$: \url{https://github.com/halide/Halide/pull/4772}
-$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439} % these are the div by 0 semantics change fixes
-$\mathbb{I}$: \url{https://github.com/halide/Halide/pull/4850}
-}
-is a change to the semantics of Halide that may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\citep{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 
-\NumZdivCoqProvedRules rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, \NumZdivFalseRules existing rules were found to be incorrect in the new semantics and fixed. (Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in case $\mathbb{D}$ above.) The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
-
-\begin{align*}
-(x/y)*y + (x\;\%\;y) \rewrites & x \\
-  -1 / x \rewrites & \hsel(x < 0, 1, -1) \\
-(x + y)/x \rewrites & y/x + 1
-\end{align*}
-
-The first was modified to:
-\[
-(x/c_0)*c_0 + (x\;\%\;c_0) \rewrites x \pred c_0 \neq 0
-\]
-and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
-
-The cases discussed in Section~\ref{sub:bugfixes} all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect rules, and 3 pull requests that modify rules in order to avoid cycles. Fixing a reduction order also guarantees that no new cycles can be introduced as long as new rules obey this order; without such a guide, it is possible to introduce a rule that would close a loop in some sequence of existing rule applications and cause a cycle, resulting in infinite recursion during compilation. 
-
-\begin{table*}
-\caption{Rules corrected through the first round of verification.}
-{\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{r|l|l}
-& Rule & Counterexample \\
-\hhline{=|=|=}
-Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
-Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
-\hhline{=|=|=}
-Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites {-x} \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
-\hhline{=|=|=}
-Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \;\%\; c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
-Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + {-c_0} \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
-
-\end{tabular}
-}
-\label{tab:verfirstround}
-\end{table*}
 
 
 \section{Termination}
@@ -170,7 +110,7 @@ The Halide TRS is used both to prove expressions true and to simplify them; when
 The lexicographic product of two terminating relations is again terminating.
 \end{theorem}
 
-Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of 13 component orders.
+Thus, our strategy in finding a reduction order to cover the handwritten ruleset is to pick an order $>_a$ such that for all rules $l \rewrites r$, either $l >_a r$ or $l =_a r$. Then, we pick another order $>_b$ such that for all rules $l \rewrites r$ where $l =_a r$, either $l >_b r$ or $l =_b r$. We continue in this way until a sequence of orders has been found such that for their product $>_{\times}$, $l >_{\times} r$ holds for the entire ruleset.  Our final ordering consists of 13 component orders, given in full in appendix~\ref{a:reductionorder}.
 
 Many of our component orders are defined using measure functions that count the number of particular operations or other features in a term. We say that $s > t$ when $s$ has more vector operations than $t$, then when $s$ has more division, modulo and multiplications operations, and so on. As a sample proof sketch of this flavor of order, consider an order $s_1 >_* s_2$ that holds when the number of multiplication operations is greater in $s_1$ than in $s_2$. We represent this through a measure function $|s_1|_*$ that returns the count of multiplication operations in $s_1$; since this function maps a term to a natural number, the order is clearly well-founded. The order is also compatible with $\Sigma$-operations; we compute our measure function as follows:
 
@@ -193,7 +133,7 @@ To ensure the order is closed under substitution, we need to add one more constr
 s_1 >_* s_2 \textrm{ iff } |s_1|_* > |s_2|_* \wedge \forall x \in \mathcal{V}ar(s_1) . |s_1|_x \geq |s_2|_x
 \]
 
-Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, for part of the existing ruleset, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
+Most of the component orders in the full reduction order take the form above. These orders guarantee termination no matter what sequence rewrite rules are applied to an expression. However, in a few exceptional cases, we were obliged to take into account the order in which rules are applied in the Halide TRS algorithm.
 
 For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites (y - x) + c_0$ where $c_0$ is a constant. If $y$ is also a constant, this rule forms a cycle with itself, and could not possibly obey any reduction order. Fortunately, the rule immediately before it in the TRS handles that specific case ($((c_0 - x) + c_1 \rewrites \texttt{fold}(c_0 + c_1) - x)$), so by this sort of non-local reasoning we know that $y$ is not a constant, and therefore the rule strictly decreases a measure which counts the number of constants on the right-hand side of an addition.
 
@@ -209,14 +149,59 @@ For example, one existing rule is the canonicalization $(c_0 - x) + y \rewrites 
 
 Relying on non-local reasoning makes our order more brittle; if the simplifier algorithm were to be changed, the termination guarantee could be lost. However, we use only a small number of basic rules in this way, which are unlikely to be changed.
 
-Besides giving a termination guarantee, the reduction order is necessary if we want to synthesize new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction.
+Besides giving a termination guarantee, the reduction order is necessary if we want to synthesize new rewrite rules. If we do not constrain newly-synthesized rules to obey a consistent reduction order with the existing human-written ones, they may form cycles with the existing rules and cause infinite recursion in the TRS. Additionally, the reduction order is the formal encoding of the types of transformations we find desirable, so the reduction order limits synthesis to rules that rewrite expressions in a useful direction; this is discussed in greater detail in chapter~\ref{chapter:synthfromscratch}.
 
-In constructing the reduction order, we found \NumOrderingProblems rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we build a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. A full description of the reduction order is given in the supplemental material.
+In constructing the reduction order, we found \NumOrderingProblems rules that contradicted a desirable ordering, and submitted patches to either delete or modify them. With this amendment, the reduction order can be shown to hold over the entire Halide ruleset, and the guarantee of termination is complete. To ensure this guarantee is preserved, we built a script that automatically checks the full set of rules in the compiler to ensure they respect the reduction order. 
+
+\subsection{Evaluation of verification work}
+
+Changes to the simplifier ruleset undergo a stringent development process: new rules are peer reviewed after they are proven on paper, and fuzz-testing is used to discover bugs. It is thus reasonable to ask whether mechanized verification can add any value. Our verification discovered \NumRulesFixed previously-unknown correctness bugs and \NumPredicatesRelaxed instances of rules whose predicates were overly restrictive. The former bugs eluded the fuzzer; the latter are deemed too hard to detect so the fuzzer does not look for them.  Some of the corrected rules are listed in more detail in table~\ref{tab:verfirstround}.
+
+%The first use of verification took place when the TRS had not yet been merged into the Halide master branch. We ran the verification pipeline and discovered \NumRulesFixed incorrect rewrite rules, listed in Table~\ref{tab:verfirstround}. The rules that could not be checked with Z3 were proved true using the Coq proof assistant (none of the manually proved rules were found to be incorrect). While these bugs were found automatically the fixes were performed by hand, as the synthesis pipeline did not yet exist. 
+
+Furthermore, because the verification infrastructure was in place, it was possible to verify a change of division semantics without much additional effort, identifying 44 rules that were incorrect under the new semantics. This change to the semantics of Halide may not have even been attempted without the verifier. In this change, Halide defined division or modulo by zero to evaluate to zero, instead of being undefined behavior, in response to an issue discovered by Alex Reinking~\citep{reinkingthesis}. Existing tests and real uses of Halide were useless as a test of this change, as \emph{they were all carefully written to never divide by zero}. Within the TRS, this change required rechecking every rewrite rule that involves the division and modulo operators. Whereas previously each rule assumed that a denominator on the LHS could not be zero, now it was necessary to either show that the rule was still correct in the case where a denominator was zero, or constrain the rule to only trigger when the denominator was known to be non-zero. This was done by encoding the new semantics into the verifier, and reverifying all rules. Because division and modulo is involved, these rules cannot always be mechanically verified. 
+\NumZdivCoqProvedRules rules were reverified with a human in the loop by revisiting and modifying existing Coq proofs. The mechanical re-verification was all but push-button; the manual effort for updating the Coq proofs was non-trivial, but about half of the effort of writing the original proofs from scratch. In this process, \NumZdivFalseRules existing rules were found to be incorrect in the new semantics and fixed\footnote{\url{https://github.com/halide/Halide/pull/4439}}. 
+Two of them were in fact not related to division, but were instead the first discovery of the bugs injected in a patch after the initial ruleset verification. 
+The remaining 42 rules were modified to only trigger when the denominator was known to be non-zero, either by adding a predicate to the rule, or by exploiting the TRS’s ability to track constant bounds and alignment of subexpressions. Three examples of now-incorrect rules were:
+
+\begin{align*}
+(x/y)*y + (x\;\%\;y) \rewrites & x \\
+  -1 / x \rewrites & \hsel(x < 0, 1, -1) \\
+(x + y)/x \rewrites & y/x + 1
+\end{align*}
+
+The first was modified to:
+\[
+(x/c_0)*c_0 + (x\;\%\;c_0) \rewrites x \pred c_0 \neq 0
+\]
+and the other two were constrained to only trigger when the denominator is known to be non-zero via other means.
+
+The cases discussed in Section~\ref{sub:bugfixes} all concern fixing existing problems while not introducing new ones. By giving a proof of soundness, showing that the ruleset is correct and that the rules are cycle-free, we also remove two entire classes of future bugs. For reference, over the life of the Halide project there have been 14 pull requests that fix incorrect rules, and 3 pull requests that modify rules in order to avoid cycles. Fixing a reduction order also guarantees that no new cycles can be introduced as long as new rules obey this order; without such a guide, it is possible to introduce a rule that would close a loop in some sequence of existing rule applications and cause a cycle, resulting in infinite recursion during compilation. 
+
+\begin{table*}
+\caption{Rules corrected through the first round of verification.}
+{\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{r|l|l}
+& Rule & Counterexample \\
+\hhline{=|=|=}
+Wrong &  $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_1 > 0$ & $c_0 = -1, c_1 = 2, x = 1$\\
+Fixed & $\frac{x * c_0}{c_1} \rewrites \frac{x}{(c_1 / c_0)} \pred c_1 \;\%\; c_0 = 0 \wedge c_0 > 0 \wedge \frac{c_1}{c_0} \neq 0$ & \\
+\hhline{=|=|=}
+Wrong & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites x \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $(\frac{x + c_0}{c_1})*c_1 - x \rewrites {-x} \;\%\; c_1 \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+\hhline{=|=|=}
+Wrong & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites -(x \;\%\; c_1) \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & $c_0 = 2, c_1 = 3, x = -5$\\
+Fixed & $x - (\frac{x + c_0}{c_1})*c_1 \rewrites ((x + c_0) \;\%\; c_1) + {-c_0} \pred c_1 > 0 \wedge c_0 + 1 = c_1$ & \\
+
+\end{tabular}
+}
+\label{tab:verfirstround}
+\end{table*}
 
 
 \section{Related Work}
 
-An \textit{equivalence graph} or egraph (introduced by \citep{nelson1980techniques}, see \citep{willsey2021egg} for a recent treatment) is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the egraph can require significant amounts of memory, which our algorithm avoids.
+An \textit{equivalence graph} or e-graph (introduced by \citep{nelson1980techniques}, see \citep{willsey2021egg} for a recent treatment) is a data structure used to compute applications of the rules of a term rewriting system. The algorithm builds up equivalence classes by successively applying all rules to all expressions within those classes, then queries to see if two expressions are equivalent by checking if they are present in the same class. Like our algorithm, it does not backtrack, but the e-graph can require significant amounts of memory, which our algorithm avoids.
 
 AProVE~\citep{giesl2004automated, giesl2017analyzing} is a tool that automatically generates proofs of termination for term rewriting systems (as well as programs in Java, C, Haskell, and so on). It employs a variety of techniques for doing so. It may prove a TRS terminations through direct termination proofs, or finding a reduction order that fits all rules in the TRS, as we do in our work, searching classes of orders including path orders, Knuth-Bendix orders, and polynomial orders. It may also prove termination through dependency pairs (finding all instances in which terms of RHSs can unify with rule LHSs, then showing that a weakly monotonic ordering holds over all dependency pairs) or by abstracting rules by their effect on term height and proving that rule application must cause term height to decrease. It also employs techniques to remove portions of the ruleset that have no effect on termination and for reducing the size of the ruleset to make termination proof search more efficient. 
 A proof of termination by term height abstraction would not be useful for synthesis, since it encodes no information about progress towards a goal state. A proof of termination through dependency pairs could do so, and since it uses weakly rather than strongly monotonic orders, it could permit rewriting strategies that our technique cannot. However, this method requires reasoning over the full ruleset rather than individual rules, so using it as a specification for synthesis would result in a significantly more complicated synthesis task. However, it would be interesting to see if AProVE can find a direct termination proof for the Halide simplifier and handwritten variable solver TRSs and if those direct termination proofs are human-interpretable. If AProVE can find reduction orders to fit, it would also be interesting to see what rulesets could be synthesized using them as an input to our synthesis pipeline.
