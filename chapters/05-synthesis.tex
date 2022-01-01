@@ -127,6 +127,39 @@ expression as well as any similar expressions it may encounter.
 
 
 
+
+
+\subsection{Generating LHS Patterns}
+
+Useful input expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
+kinds of problematic expression for which new simplifier rules may be helpful:
+non-monotonic expressions, which can result in over-conservative
+bounds for loops and memory allocations; and proof failures,
+which may prevent Halide from performing certain optimizations
+(see Section~\ref{sec:uses-of-trs}). 
+Of course, absent an oracle, it is difficult to know if the TRS has fully simplified 
+some expression or if it lacks the solving power to continue simplification. 
+When the simplifier is used as a proof engine, its goal is to reduce an expression to true.
+In this case, we can fuzz-test failed proofs by assigning all variables in an expression
+random values and evaluating; if we cannot find an assignment that evaluates to false,
+the expression may indeed be reducible to true, so we log it as an input expression.
+
+  Our first step is to find LHS terms that could match the input expression, or any portion of it. 
+We can enumerate all such terms through a kind of inverse matching.
+When we rewrite an expression with a rule, 
+we match the expression to the rule's LHS by finding a substitution for all variables in
+the LHS that will unify it with the input expression. Here, we start with an input expression,
+then fix a substitution by mapping some of its subterms to fresh variables. We 
+replace those subterms with the new variables, constructing a term that can 
+be matched with the input term.
+If we perform this inverse matching for all sets of subterms, we find \emph{all possible LHSs} that could match the
+input expression. 
+When a subterm occurs more than once in the input expression, we construct a LHS that 
+uses the same variable to replace it in multiple places and LHSs that replace its
+occurrences with different variables.
+We repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
+LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example.
+
 \begin{figure*}
 \begin{tabular}{lll}
 \begin{tikzpicture}[level distance=12mm,baseline=(current bounding box.center)]
@@ -166,37 +199,6 @@ LHS patterns by substituting fresh variables for subterms, for all valid combina
 each individual subterm. This process yields the list of candidate LHS terms on the right.}
 \label{fig:lhspatterns}
 \end{figure*}
-
-\subsection{Generating LHS Patterns}
-
-Useful input expressions may come from a bug report, or may be gathered from compiler logs. With logging enabled, the compiler records two
-kinds of problematic expression for which new simplifier rules may be helpful:
-non-monotonic expressions, which can result in over-conservative
-bounds for loops and memory allocations; and proof failures,
-which may prevent Halide from performing certain optimizations
-(see Section~\ref{sec:uses-of-trs}). 
-Of course, absent an oracle, it is difficult to know if the TRS has fully simplified 
-some expression or if it lacks the solving power to continue simplification. 
-When the simplifier is used as a proof engine, its goal is to reduce an expression to true.
-In this case, we can fuzz-test failed proofs by assigning all variables in an expression
-random values and evaluating; if we cannot find an assignment that evaluates to false,
-the expression may indeed be reducible to true, so we log it as an input expression.
-
-  Our first step is to find LHS terms that could match the input expression, or any portion of it. 
-We can enumerate all such terms through a kind of inverse matching.
-When we rewrite an expression with a rule, 
-we match the expression to the rule's LHS by finding a substitution for all variables in
-the LHS that will unify it with the input expression. Here, we start with an input expression,
-then fix a substitution by mapping some of its subterms to fresh variables. We 
-replace those subterms with the new variables, constructing a term that can 
-be matched with the input term.
-If we perform this inverse matching for all sets of subterms, we find \emph{all possible LHSs} that could match the
-input expression. 
-When a subterm occurs more than once in the input expression, we construct a LHS that 
-uses the same variable to replace it in multiple places and LHSs that replace its
-occurrences with different variables.
-We repeat the procedure on all \emph{subterms} of the input expression.  The result is the set of all 
-LHSs that match any part of the input expression. See Figure~\ref{fig:lhspatterns} for a worked example.
 
 This number of LHSs is exponential in the size of the input expression, so we use a few heuristics to narrow 
 our search. We bound the size of candidate LHSs to have seven or fewer leaves, since longer terms are less likely to 
@@ -240,7 +242,7 @@ In superoptimization~\citep{massalin1987superoptimizer}, we take a program and s
 for an equivalent program within some grammar that is preferable according 
 to some cost function. Here our grammar is that of the Halide expression language, 
 the method for testing program equivalence is the Z3 solver, and we use the node
-count of the programs as a proxy for our full reduction order.
+count of the programs as a proxy for our full reduction order. \newpage
 
 Similar to prior work in superoptimization~\citep{regehr2018superoptimization, mangpo2016superoptimization},
 we search the expression space for an equivalent RHS using a CEGIS loop. This loop alternately calls Z3 as a
@@ -498,16 +500,16 @@ We discuss these findings in more detail below, grouping them into three section
 
 We searched through Halide’s change history and selected the five pull requests that addressed issues by adding new rewrite rules to Halide’s TRS. These pull requests occurred before the Halide developers started routinely using the verifier and synthesizer when changing the TRS, labeled here as $\mathbb{A}$-$\mathbb{E}$. These can be found in their original form as patches on the Halide project website
 \footnote{
-$\mathbb{A}$: \url{https://github.com/halide/Halide/pull/3719}
-$\mathbb{B}$: \url{https://github.com/halide/Halide/pull/3761}
-$\mathbb{C}$: \url{https://github.com/halide/Halide/pull/3765}
-$\mathbb{D}$: \url{https://github.com/halide/Halide/pull/3770}
-$\mathbb{E}$: \url{https://github.com/halide/Halide/pull/3780}
+$\mathbb{A}$: \url{https://github.com/halide/Halide/pull/3719} \\
+$\mathbb{B}$: \url{https://github.com/halide/Halide/pull/3761} \\
+$\mathbb{C}$: \url{https://github.com/halide/Halide/pull/3765} \\
+$\mathbb{D}$: \url{https://github.com/halide/Halide/pull/3770} \\
+$\mathbb{E}$: \url{https://github.com/halide/Halide/pull/3780} 
 }.
 Creating these rewrite rules as a human is an amount of work disproportionate to the size of the change. The author of the rules must prove them correct on paper, and a second reviewer must check their work. As we will see, bugs can slip through despite this review. 
 
 In each case we take the test expressions committed as part of the change and feed them to our synthesizer to see if it would have produced the same rewrite rules as the humans did. In cases where humans did not check in tests for their new rules, we wrote our own. In total, across these five cases humans added 24 new rules. The synthesizer generated 42, covering all but one of the human rules, while correcting and generalizing others. In cases $\mathbb{A}$, $\mathbb{C}$, and $\mathbb{E}$, the rules generated by the synthesizer are an exact match to the human-generated rules. In case $\mathbb{B}$ the synthesizer matched the human but also crafted 8 commuted variants of the human rules, making them more widely applicable. 
-\newpage
+
 As an example, for the human-written rule:
 
 \[
@@ -575,9 +577,9 @@ We tested the synthesizer's ability to recreate the original ruleset in the foll
 We have found that human experts can leverage the strengths of the synthesis tool by using it as an assistant: for example by synthesizing a rule and then generalizing or simplifying it by hand, or by writing a rule and asking the tool to synthesize a valid predicate. Most importantly, this avoids committing new bugs, but it also accelerates rule development. Halide developers report that adding new rules by hand takes about 30 minutes per rule starting from sample input expressions through final review. Starting from the same input expressions, the synthesis tool can produce a batch of 10 verified rules in about 5 minutes.
 
 Here we survey some cases from recent Halide development where the synthesis machinery was used in this way, labeled here as $\mathbb{F}$ through $\mathbb{I}$. The diffs are available as  on the Halide project website\footnote{
-$\mathbb{F}$: \url{https://github.com/halide/Halide/pull/4721}
-$\mathbb{G}$: \url{https://github.com/halide/Halide/pull/4772}
-$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439} % these are the div by 0 semantics change fixes
+$\mathbb{F}$: \url{https://github.com/halide/Halide/pull/4721} \\
+$\mathbb{G}$: \url{https://github.com/halide/Halide/pull/4772} \\
+$\mathbb{H}$: \url{https://github.com/halide/Halide/pull/4439} \\% these are the div by 0 semantics change fixes
 $\mathbb{I}$: \url{https://github.com/halide/Halide/pull/4850}
 }.
 

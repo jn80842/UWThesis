@@ -12,7 +12,9 @@ Terms are defined inductively over a set of variables $V$ and a set of function 
 
 A \emph{rewrite rule} is a directed binary relation $l \rewrites r$ such that $l$ is not a variable, and all variables present in $r$ are also present in $l$ (i.e., $\mathcal{V}ar(l) \supseteq \mathcal{V}ar(r)$). A set of rewrite rules is called a \emph{term rewriting system}.
 
-Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. Let the term rewriting system $R$ consist of a single rule:
+Consider a set of terms $T(\Sigma, V)$ such that $\Sigma = \{\clubsuit, \diamondsuit\}$ and $V$ is an infinite set of variables. 
+\newpage
+Let the term rewriting system $R$ consist of a single rule:
 
 \[ R = \{ x_1 \clubsuit x_2 \rewrites x_1 \diamondsuit x_2 \} \]
 We use $R$ to rewrite the term
@@ -44,6 +46,7 @@ The Halide expression language contains the usual arithmetic operators and uses 
 
 
 \begin{figure*}
+\centering
 \begin{tabular}{cccc}
 
 %\Tree [.+ [.- [.min a b ] [.max c c ] ] [.max c c ]]
@@ -363,6 +366,7 @@ Thus, correctness and generality of the simplifier are essential qualities for m
 robust and able to generate fast code.
 
 \subsection{The Variable Solver}
+\label{sec:thevariablesolver}
 
 The Halide compiler contains a $\texttt{SolveExpression}$ class that implements functionality that we will refer to as a variable solver in this work. It takes an expression and a variable name as inputs and `solves' the expression for that variable, isolating it on the left of an expression.
 
