@@ -1,11 +1,8 @@
 \chapter{Introduction}
 \label{sec:intro}
 
-\jln{More general intro para needed here. possibly rewrite para below to be generally about reasoning in compilers, then 2nd para specifically about reasoning in Halide.}
-
-To compile an image processing pipeline written in the
-  Halide language, the compiler must perform a variety of analyses of
-  the pipeline's properties. For example, if the user marks a
+Halide is a widely used, open source image processing language intended to deliver very high performance in its compiled programs. Like many compilers, in order to apply optimizations, the Halide compiler must perform a variety of analyses of
+  the input program's properties. For example, if the user marks a
   loop to be fully unrolled, the compiler must infer a constant upper
   bound for the extent of the loop. If the user marks
   a loop as parallel, the compiler must prove the absence of data
@@ -59,7 +56,7 @@ In this work, we propose to show how authoring and maintaining term rewriting sy
 In this work we make the following contributions:
 
 \begin{itemize}
-    \item \emph{We show formal methods and program synthesis can usefully assist the authors of term rewriting systems.} Formal proofs of soundness and guarantees of termination can find bugs in large, widely-deployed term rewriting systems, and automatic program synthesis can be used to find new rewrite rules to augment these systems.
+    \item \emph{We show formal methods and program synthesis can usefully assist the authors of term rewriting systems.} Formal proofs of soundness and guarantees of termination can find bugs in large, widely-deployed term rewriting systems, and automatic program synthesis can be used to find new rewrite rules to augment these systems. Our work has identified and patched bugs in the Halide codebase, been used by Halide developers to support code maintenance, and automatically produced new rewrite rules that have been merged into the compiler.
     \item \emph{We present an effective means of encoding a specification for the synthesis of term rewriting systems.} Besides providing a proof of termination, we claim that reduction orders can serve as a useful formalization of the intent behind a term rewriting system, and can be used as a specification when synthesizing rewrite rules.
 \end{itemize}
 
@@ -72,7 +69,7 @@ In the second case study, we take a look at a smaller and less mature term rewri
 
 The Halide compiler contains a hand-authored term rewriting system commonly called the simplifier. It is used in many cases within the compiler for making expressions shorter and in a form better suited to downstream uses. Sometimes the simplifier is used as a prover: the truth value of an expression is checked by rewriting it with the simplifier to see if it will be rewritten to the constant \htrue. At the time we began this work, the simplifier was fairly mature: it had been deployed in production for over a year, was both unit tested and fuzz tested, and comprised almost a thousand rules.
 
-Is it necessary to apply formal methods to the authoring of term rewriting systems? In chapter~\ref{chapter:verification}, we show that applying formal methods can identify and remedy real issues in the simplifier TRS. Conversely, we observe that implementing expression-transforming code as a term rewriting system is useful precisely because it allows easy integration with formal methods. We also show in chapter~\ref{chapter:synthesis}that we can improve this term rewriting system by synthesizing new rewrite rules automatically and that this synthesis process can be used in the compiler's development process. This work has been published at OOPSLA 2020~\citep{newcomb2020verifying}.
+Is it necessary to apply formal methods to the authoring of term rewriting systems? In chapter~\ref{chapter:verification}, we show that applying formal methods can identify and remedy real issues in the simplifier TRS. Conversely, we observe that implementing expression-transforming code as a term rewriting system is useful precisely because it allows easy integration with formal methods. We also show in chapter~\ref{chapter:synthesis} that we can improve this term rewriting system by synthesizing new rewrite rules automatically and that this synthesis process can be used in the compiler's development process. This work has been published at OOPSLA 2020~\citep{newcomb2020verifying}.
 
 \subsection{Proof of soundness}
 First, we formally verify that each rule in the Halide simplifier ruleset is semantics-preserving, demonstrating that proofs of soundness are possible despite the lack of a 

@@ -1,7 +1,7 @@
-\chapter{Conclusion and Future Work}
+\chapter{Future Work and Conclusion}
 \label{chapter:conclusion}
 
-
+Our work in synthesizing term rewriting systems suggests several further directions. We detail some intended future work here and conclude.
 
 \section{Future Work}
 
@@ -11,12 +11,12 @@
 In our evaluation (section~\ref{sec:varsolvereval}), we showed that we were able to synthesize effective term rewriting systems to address the variable solver's task. However, our ultimate, practical aim is to synthesize a term rewriting system that can replace the existing variable solver in the Halide compiler altogether. There are three main issues that need to be addressed before we can achieve that goal.
 
 \subsubsection{Support for rule predicates}
-In our previous evaluation, we did not attempt to synthesize predicates that must be fulfilled for a rule to be applied, as we did in the simplifier work. For that reason, we replaced all constant values in our benchmarks with fresh variables. However, calls to the variable solver frequently involve constants that are known at compiler time, as seen in the TrimNoOps example use case in section~\ref{sec:trimnoops}. Rules that can exploit information about those constants to apply further rewrites could be crucial in solving expressions that our synthesized TRSs cannot solve now.
+In our previous evaluation, we did not attempt to synthesize predicates that must be fulfilled for a rule to be applied, as we did in the simplifier work. For that reason, we replaced all constant values in our benchmarks with fresh variables. However, calls to the variable solver frequently involve constants that are known at compiler time, as seen in the \texttt{TrimNoOps} example in section~\ref{sec:trimnoops}. Rules that can exploit information about those constants to apply further rewrites could be crucial in solving expressions that our synthesized TRSs cannot solve now.
 
 Our process for synthesizing rule predicates for the simplifier was fairly involved and computationally expensive. However, we believe we could take a much simpler approach for the variable solver. For the simplifier, we first synthesized a RHS for a LHS expression that contained constants, then replaced those constants with fresh variables. If the equivalence between LHS and RHS no longer held, we attempted to synthesize a predicate that implied that equivalence. For the variable solver, rather than attempt to synthesize arbitrary predicates, we believe we could get similar performance with a small set of fixed predicates, such as $c > 0$, $c < 0$, $c \neq 0$, and conjunctions of the above. For each candidate LHS, we might choose one of those fixed predicates and a (symbolic) constant in the LHS to apply the predicate to, and ask the solver to find a RHS that is equivalent to the LHS assuming that predicate is true. This would multiply the number of queries to the solvers up to the size of the predicate set, but for a relatively small set this is still highly tractable.
 
 \subsubsection{Support for division and modulo}
-Integer division and modulo operations are difficult for SMT solvers such as Z3 to reason about, as discussed in section~\ref{sec:rhssynthesis}. In earlier experiments, candidate LHSs that contained division and modulo operations almost always resulted in solver queries that timed out, and very very few RHS expressions that contained those operations were ever synthesized. For that reason, in the variable solver experiments in section~\ref{sec:varsolvereval}, we skipped all candidate LHSs that contained division or modulo and removed those operations from the language grammar from which RHSs were synthesized. This saved large amounts of processing time and made virtually no different to the synthesized results. However, the variable solver is frequently invoked on expressions that contain those operations, so it will be important for the variable solver TRS to be able to handle them. We plan to investigate more performant ways to reason about these operations, such as approximating integers with bitwidth encodings.
+Integer division and modulo operations are difficult for SMT solvers such as Z3 to reason about, as discussed in section~\ref{sec:rhssynthesis}. In earlier experiments, candidate LHSs that contained division and modulo operations almost always resulted in solver queries that timed out, and almost no RHS expressions that contained those operations were ever synthesized. For that reason, in the variable solver experiments in section~\ref{sec:varsolvereval}, we skipped all candidate LHSs that contained division or modulo and removed those operations from the language grammar from which RHSs were synthesized. This saved large amounts of processing time and made virtually no difference to the synthesized results. However, the variable solver is frequently invoked on expressions that contain those operations, so it will be important for the variable solver TRS to be able to handle them. (Indeed, the TRS based on Coq axioms described in section~\ref{sec:varsolvereval} included many rules which used division and modulo, which may be why it was able to solve many benchmarks that our synthesized TRSs could not, even though it solved few benchmarks than the synthesized TRSs overall.) We plan to investigate more performant ways to reason about these operations, such as approximating integers with bitwidth encodings.
 
 \subsubsection{Conclusive benchmarks}
 Our evaluation showed that a relatively small, randomly sampled training set is sufficient to learn a ruleset that is capable of solving a sizable fraction of a much larger test set. However, in order to propose a TRS that can serve as a substitute for the existing variable solver, we need a benchmark set that acts as a good proxy for realistic workloads the Halide compiler will encounter in the wild. We propose to work with Halide developers to gather such a benchmark set. We also did not demonstrate that a TRS-based variable solver with greater solving power would produce beneficial downstream effects in compiled pipelines, as we did for the simplifier; such a demonstration would be a useful argument for replacing the existing code with a synthesized TRS.
@@ -24,9 +24,6 @@ Our evaluation showed that a relatively small, randomly sampled training set is 
 No matter how confident we are in our choice of benchmarks, it is difficult to draw a bright line and declare a synthesized TRS to be good enough---it is always possible to continue learning new rules, as our problem remains undecidable in the general case. 
 
 \subsection{Completion}
-\label{sec:completion}
-
-\subsection{Completeness of the Halide TRS}
 \label{sec:completion}
 
 We know by observation that the Halide simplifier TRS cannot prove certain equalities 
@@ -105,27 +102,8 @@ One strategy is suggested by \emph{completion} algorithms. A completion algorith
 
 As discussed earlier, choosing a gradual order that describes a strategy or gradient towards a desired goal form is not a trivial task and requires human intuition. Not only must the order describe a gradient over terms towards the goal, but it also must be a valid reduction order; if it is not, then the resulting term rewriting system (as well as the synthesis pipeline that produces it) is not guaranteed to terminate or indeed to actually make progress towards the goal. Proving an order is a valid reduction order is sometimes tricky, and appealing orders are often found not to be valid reduction orders after closer inspection. Reduction orders over terms often follow a set of patterns, such as orders that reduce the size of expressions or reduce the number of particular operations or variables. It would be a useful contribution to produce a handbook of these reduction order families, as well as strategies for efficiently encoding them into sketches for synthesis.
 
-Finally, we intend to explore other applications of this work to other problems, other types of rewriting, and other domains. For example, synthesizing rewrite rules for a very different rewrite algorithm such as within an e-graph might require a very different strategy. Likewise synthesizing a term rewriting system for a decidable theory, such as bitwidths of finite width or linear integer arithmetic might also look very different.
+Finally, we intend to explore other applications of this work to other problems, other types of rewriting, and other domains. For example, synthesizing rewrite rules for a very different rewrite algorithm such as that used in an e-graph might require a very different strategy. Synthesizing a term rewriting system for a decidable theory, such as bitwidths of finite width or linear integer arithmetic, might also look very different.
 
 \section{Conclusion}
-We claim in this work that formal methods and program synthesis can be used to assist compiler authors in creating and maintaining these term rewriting systems. In prior work, we have shown how these techniques can aid in the maintenance of existing term rewriting systems by providing proofs of correctness and termination, and by synthesizing rewrite rules that strengthen a system's reasoning power. In proposed work, we plan to show how our techniques can greatly improve smaller or immature term rewriting systems or even create them from scratch. We have demonstrated the former claim in a case study on the Halide simplifier term rewriting system, and have presented a plan to investigate the latter claim on the variable solver, a much less mature term rewriting system in the Halide compiler.
 
-The Halide TRS is used both to prove expressions true or false and to
-simplify expressions to more easily optimizable forms, but these two use cases
-are not always aligned. One could imagine two separate rewriters with
-different rulesets and reduction orders. One interesting direction for future
-work might be to use the synthesizer to create these two rulesets, which would
-otherwise be a very human-effort intensive task.
-
-Although we do not currently synthesize rules that contain vector operators,
-they are not incompatible with our approach. Since our reduction of Halide
-expressions to SMT2 formulas models vector expressions as integers, we would need
-to add a typechecking step to ensure correctness in the synthesis process, which
-we leave as future work.
-
-The priority in which rules are considered for matching clearly can have
-performance implications, but evaluation and tuning is left as future work, and
-may require modifying our ordering or creating different orderings for different
-uses of the term rewriting system.
-
-Finally, while enhancing the Halide TRS was not able to improve the performance of the mature Halide compiler, we suspect this may not be the case for other, less well-exercised compiler backends. In future work we plan to use this technique to enhance the ruleset used to compile Halide applications to GPU code or to the Hexagon ISA.
+Term rewriting systems can serve as a key reasoning component within compilers, allowing them to successfully apply optimizations to produce performant code. In this work, we have demonstrated how formal methods such as verification and synthesis can assist compiler authors in creating and maintaining correct and powerful TRS-based reasoning engines. We have shown how these techniques can be used on existing, handwritten TRSs, by first providing proofs of correctness and termination for an existing system, and then using synthesis to grow the system's reasoning power. Our work has resulted in bug fixes and improvements to the system that have since been merged into the main Halide codebase. We then showed how synthesis can be used to create a new term rewriting system, saving the programming effort of writing rules by hand. We argued that an efficient way to write specifications for a term rewriting system is through a reduction order, and discussed ways of translating the purpose of a TRS into this formalism. We showed that our refined synthesis pipeline is able to produce general and robust TRSs that perform well when compared to TRSs created using other means for the same purpose. Finally, we presented some directions for future work, including the goal of synthesizing a TRS that can act as a drop-in replacement for an existing compiler component written in general-purpose code.

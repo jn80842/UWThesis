@@ -42,39 +42,33 @@ In this chapter, we argue that the reduction order is a useful and powerful way 
 
 \end{tikzpicture}
 
-%\begin{tikzpicture}[<->,auto,node distance=4cm]
-%\tikzstyle{every state}=[draw=none]
-%\node[state]    (A) [right of=F]    {$(y + x) - y$};
-%%\node[state]    (B)     {$x + 0$};
-%\node[state]    (C)     {$x + (y \cdot (z - z))$};
-%%\node[state]    (D)     {$x \cdot (\frac{z}{z})$};
-%%\node[state]    (E)     {$x$};
-%\node[state]    (F) [below left of=C]    {$\hmin(x, x \cdot 1)$};
-%%\node[state]    (G)     {$\frac{x \cdot 3}{3}$};
+\begin{tikzpicture}[->,auto,node distance=4cm]
+\tikzstyle{every state}=[draw=none]
+\node[state]    (A)     {$\frac{x \cdot 3}{3}$};
+\node[state]    (B) [below right of=A]    {$x + 0$};
+\node[state]    (C) [above right of=A]    {$x + (y \cdot (z - z))$};
+\node[state]    (D) [right of=A]    {$x \cdot (\frac{z}{z})$};
+\node[state]    (E) [below of=B]    {$x$};
+\node[state]    (F) [right of=D]    {$\hmin(x, x \cdot 1)$};
+\node[state]    (G) [left of=A]    {$(y + x) - y$};
 
-%\path (A)   edge    node {} (B)
-%            edge    node {} (C)
-%            edge    node {} (D)
-%            edge    node {} (E)
-%            edge    node {} (F)
-%            edge    node {} (G)
-%     (B)    edge [bend right]   node {} (C)
-%            edge [bend right]   node {} (D)
-%            edge [bend right]   node {} (E)
-%            edge    node {} (F)
-%            edge    node {} (G)
-%    (C)     edge    node {} (D)
-%            edge    node {} (E)
-%            edge [bend right]   node {} (F)
-%            edge    node {} (G)
-%    (D)     edge [bend right]   node {} (E)
-%            edge [bend right]   node {} (F)
-%            edge [bend right]   node {} (G)
-%    (E)     edge [bend right]   node {} (F)
-%            edge [bend right]   node {} (G)
-%    (F)     edge [bend right]   node {} (G);
+\path (C)   edge [bend right]   node {} (G)
+            edge [bend right]   node {} (A)
+            edge [bend left]   node {} (D)
+            edge [bend left]   node {} (F)
+            edge                node {} (B)
+            edge [bend right]    node {} (E)
+    (G)     edge [bend right]   node {} (B)
+            edge [bend right]   node {} (E)
+    (A)     edge [bend right]   node {} (B)
+            edge [bend right]   node {} (E)
+    (D)     edge [bend left]   node {} (B)
+            edge [bend left]   node {} (E)
+    (F)     edge [bend left]   node {} (B)
+            edge [bend left]   node {} (E)
+    (B)     edge                node {} (E);
 
-%\end{tikzpicture}
+\end{tikzpicture}
 \end{figure}
 
 
